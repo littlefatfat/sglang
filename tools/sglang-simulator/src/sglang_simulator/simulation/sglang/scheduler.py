@@ -74,6 +74,8 @@ class C_SchedulerHook(BaseHook):
             logger.debug(
                 f"Overlap schedule simulation mode: {C_SchedulerHook.OVERLAP_SCHEDULE}."
             )
+            # Use `torch_native` as the attention backend to avoid Triton exceptions during memory operations.
+            setattr(server_args, "attention_backend", "torch_native")
 
             original_init(self, *args, **kwargs)
 

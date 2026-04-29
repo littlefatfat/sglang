@@ -18,7 +18,7 @@ from sglang_simulator.simulation.sglang.bench_runner import (
 def test_benchmark_sglang():
     from sglang.srt.server_args import ServerArgs  # noqa
 
-    model_path = "Qwen/Qwen3-8B"
+    model_path = "/nfs/lvm/models/sgl-project/DeepSeek-V4-Flash-FP8/"
     runner = SGLangBenchmarkRunner(
         server_args=ServerArgs(
             model_path=model_path,

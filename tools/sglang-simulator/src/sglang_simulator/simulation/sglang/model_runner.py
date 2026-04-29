@@ -53,6 +53,10 @@ class C_ModelRunnerHook(BaseHook):
                     self.max_total_num_tokens // self.page_size * self.page_size
                 )
 
+            if hasattr(self, "is_hybrid_swa_backup"):
+                # TODO: analyze max token
+                pass
+
             max_num_reqs = min(
                 max(
                     int(
