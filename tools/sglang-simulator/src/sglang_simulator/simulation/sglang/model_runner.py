@@ -26,9 +26,7 @@ class C_ModelRunnerHook(BaseHook):
             self.model = MockModel()
 
             self.dtype = self.model_config.dtype
-            self.kv_cache_dtype = (
-                self.dtype
-            )  # FIXME: get kv cache dtype from server args
+            self.configure_kv_cache_dtype()
 
             if self.server_args.max_total_tokens is not None:
                 self.max_total_num_tokens = self.server_args.max_total_tokens
@@ -52,6 +50,13 @@ class C_ModelRunnerHook(BaseHook):
                 self.max_total_num_tokens = (
                     self.max_total_num_tokens // self.page_size * self.page_size
                 )
+
+            if self.is_hybrid_swa:
+                self.sliding_window_size = self.model_config.sliding_window_size
+                if self.model_config.is_swa_with_compressed_attention:
+                    self.set_num_tokens_hybrid_swa_compress()
+                else:
+                    self.set_num_tokens_hybrid_swa()
 
             max_num_reqs = min(
                 max(
@@ -94,23 +99,71 @@ class C_ModelRunnerHook(BaseHook):
             # so the head_num and head_dim can be set to 1 to reduce the memory usage.
             # And the scheduler only matters about whether the token_to_kv_pool can be allocated enough space for the requests,
             # so the pool's implementation is not important and can be replaced with `MHATokenToKVPool` that only simulates the allocation logic.
-            from sglang.srt.mem_cache.memory_pool import MHATokenToKVPool
+            if self.is_hybrid_swa:
+                assert (
+                    self.page_size == 256
+                ), "In paged swa mode, page_size must be 256."
+                from sglang.srt.mem_cache.deepseekv4_memory_pool import (
+                    DeepSeekV4TokenToKVPool,
+                )
 
-            self.token_to_kv_pool = MHATokenToKVPool(
-                self.max_total_num_tokens,
-                page_size=self.page_size,
-                dtype=self.kv_cache_dtype,
-                head_num=1,  # Overwrite head_num and head_dim to 1.
-                head_dim=1,
-                layer_num=self.num_effective_layers,
-                device=self.device,
-                enable_memory_saver=self.server_args.enable_memory_saver,
-                start_layer=self.start_layer,
-                end_layer=self.end_layer,
-                enable_alt_stream=False,
-            )
+                print(
+                    f"[override_initialize] {self.model_config.qk_nope_head_dim=}, {self.model_config.qk_rope_head_dim=}, {self.model_config.index_head_dim=}, {self.device=}, {self.swa_max_total_num_tokens=}"
+                )
+                self.token_to_kv_pool = DeepSeekV4TokenToKVPool(
+                    max_num_reqs=self.server_args.max_running_requests,
+                    swa_size=self.swa_max_total_num_tokens,
+                    c4_size=self.c4_max_total_num_tokens,
+                    c128_size=self.c128_max_total_num_tokens,
+                    c4_state_pool_size=self.c4_state_pool_size,
+                    c128_state_pool_size=self.c128_state_pool_size,
+                    page_size=self.page_size,
+                    swa_page_size=self.page_size,
+                    dtype=self.kv_cache_dtype,
+                    state_dtype=self.state_dtype,
+                    qk_nope_head_dim=1,  # Overwrite dim size
+                    qk_rope_head_dim=1,
+                    indexer_head_dim=1,
+                    layer_num=self.num_effective_layers,
+                    device=self.device,
+                    enable_memory_saver=self.server_args.enable_memory_saver,
+                    compression_ratios=[0] * self.num_effective_layers,
+                    start_layer=self.start_layer,
+                    end_layer=self.end_layer,
+                    enable_hisparse=self.enable_hisparse,
+                )
+            else:
+                from sglang.srt.mem_cache.memory_pool import MHATokenToKVPool
 
-            if self.page_size == 1:
+                self.token_to_kv_pool = MHATokenToKVPool(
+                    self.max_total_num_tokens,
+                    page_size=self.page_size,
+                    dtype=self.kv_cache_dtype,
+                    head_num=1,  # Overwrite head_num and head_dim to 1.
+                    head_dim=1,
+                    layer_num=self.num_effective_layers,
+                    device=self.device,
+                    enable_memory_saver=self.server_args.enable_memory_saver,
+                    start_layer=self.start_layer,
+                    end_layer=self.end_layer,
+                    enable_alt_stream=False,
+                )
+
+            if self.is_hybrid_swa:
+                from sglang.srt.mem_cache.swa_memory_pool import (
+                    SWATokenToKVPoolAllocator,
+                )
+
+                self.token_to_kv_pool_allocator = SWATokenToKVPoolAllocator(
+                    self.full_max_total_num_tokens,
+                    self.swa_max_total_num_tokens,
+                    page_size=self.page_size,
+                    dtype=self.kv_cache_dtype,
+                    device=self.device,
+                    kvcache=self.token_to_kv_pool,
+                    need_sort=False,
+                )
+            elif self.page_size == 1:
                 from sglang.srt.mem_cache.allocator import TokenToKVPoolAllocator
 
                 self.token_to_kv_pool_allocator = TokenToKVPoolAllocator(

@@ -39,6 +39,7 @@ class C_SchedulerHook(BaseHook):
     ITERATION_STATS: list[dict] = []
     LAST_CPU_TS: float = 0
     LAST_FLUSH_TS: float = 0
+    TOTAL_PREDICTOR_TIME_COST = 0
     SIMULATION_BATCH: SimulationScheduleBatch = None
 
     OVERLAP_SCHEDULE: bool = False
@@ -74,6 +75,10 @@ class C_SchedulerHook(BaseHook):
             logger.debug(
                 f"Overlap schedule simulation mode: {C_SchedulerHook.OVERLAP_SCHEDULE}."
             )
+            # Use `torch_native` as the attention backend to avoid Triton exceptions during memory operations.
+            setattr(server_args, "attention_backend", "torch_native")
+            setattr(server_args, "prefill_attention_backend", "torch_native")
+            setattr(server_args, "decode_attention_backend", "torch_native")
 
             original_init(self, *args, **kwargs)
 
@@ -287,10 +292,15 @@ class C_SchedulerHook(BaseHook):
 
                 if not simulation_batch.is_empty():
                     StateManager.inc_iteration()
+                    pred_start = time.perf_counter()
                     predicted_latency = (
                         C_SchedulerHook.INFERENCE_PREDICTOR.predict_infer_time(
                             simulation_batch
                         )
+                    )
+                    # Accumulate predictor execution time for performance analysis.
+                    C_SchedulerHook.TOTAL_PREDICTOR_TIME_COST += (
+                        time.perf_counter() - pred_start
                     )
                     predicted_latency = float(predicted_latency)
 
@@ -393,6 +403,9 @@ class C_SchedulerHook(BaseHook):
 
                 metrics = calc_metrics(metrics_stats)
                 metrics["time_cost"] = time.time() - C_SchedulerHook.LAST_FLUSH_TS
+                metrics["predictor_time_cost"] = (
+                    C_SchedulerHook.TOTAL_PREDICTOR_TIME_COST
+                )
 
                 try:
                     with open(f"{output_dir}/metrics.json", "w") as f:
@@ -418,6 +431,7 @@ class C_SchedulerHook(BaseHook):
             C_SchedulerHook.ITERATION_STATS.clear()
             C_SchedulerHook.LAST_CPU_TS = 0
             C_SchedulerHook.LAST_FLUSH_TS = time.time()
+            C_SchedulerHook.TOTAL_PREDICTOR_TIME_COST = 0
             C_SchedulerHook.OFFLINE_RECV_ALL_REQUEST = False
 
             ProfileReqOutput = getattr(
