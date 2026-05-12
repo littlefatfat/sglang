@@ -5,7 +5,7 @@ from sglang_simulator.dataset.dataset_args import DatasetArgs
 from transformers import PreTrainedTokenizerBase
 
 
-@dataclass
+@dataclass(slots=True)
 class GenericRequest:
     prompt: Optional[str] = None
     token_ids: Optional[list[int]] = None

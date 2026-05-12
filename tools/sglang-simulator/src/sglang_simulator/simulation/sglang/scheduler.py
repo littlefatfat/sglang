@@ -3,12 +3,12 @@ import importlib
 import json
 import os
 import time
-from collections import defaultdict
 from dataclasses import asdict
 
 from sglang_simulator.hook import BaseHook
 from sglang_simulator.hook.utils import get_obj_from_args
 from sglang_simulator.simulation.manager import ConfigManager, Envs, StateManager
+from sglang_simulator.simulation.sglang.req_stats_manager import request_stats_manager
 from sglang_simulator.simulation.sglang.utils import (
     resolve_model_info,
     resolve_scheduler_config,
@@ -29,13 +29,35 @@ from sglang_simulator.utils.json import CustomJsonEncoder
 logger = get_logger("sgl_simulator")
 
 
+class C_SglangPrefillAdderHook(BaseHook):
+    HOOK_CLASS_NAME = "PrefillAdder"
+    HOOK_MODULE_NAME = "sglang.srt.managers.schedule_policy"
+
+    @classmethod
+    def hook(cls, target):
+        original_add_one_req = target.add_one_req
+
+        def wrapped_add_one_req(self, *args, **kwargs):
+            req = get_obj_from_args(
+                "sglang.srt.managers.schedule_batch.Req",
+                *args,
+                **kwargs,
+            )
+            req_infos = request_stats_manager.get_req_stats(req.rid)
+            req_infos.before_adder_device_hit_len = len(req.prefix_indices)
+            req_infos.final_host_hit_len = req.host_hit_length
+
+            return original_add_one_req(self, *args, **kwargs)
+
+        target.add_one_req = wrapped_add_one_req
+
+
 class C_SchedulerHook(BaseHook):
     HOOK_CLASS_NAME = "Scheduler"
     HOOK_MODULE_NAME = "sglang.srt.managers.scheduler"
 
     INFERENCE_PREDICTOR: InferTimePredictor = None
 
-    REQUEST_STATS: dict[str, RequestStats] = defaultdict(RequestStats)
     ITERATION_STATS: list[dict] = []
     LAST_CPU_TS: float = 0
     LAST_FLUSH_TS: float = 0
@@ -54,6 +76,7 @@ class C_SchedulerHook(BaseHook):
     def hook(cls, target):
         original_init = target.__init__
         original_recv_requests = target.recv_requests
+        original_prefetch_kvcache = target._prefetch_kvcache
         original_get_new_batch_prefill = target.get_new_batch_prefill
         original_run_batch = target.run_batch
         original_process_batch_result = target.process_batch_result
@@ -198,7 +221,7 @@ class C_SchedulerHook(BaseHook):
                     "BatchTokenizedGenerateReqInput",
                     "TokenizedGenerateReqInput",
                 ]:
-                    req_stats = C_SchedulerHook.REQUEST_STATS[req.rid]
+                    req_stats = request_stats_manager.get_req_stats(req.rid)
                     req_stats.rid = req.rid
                     req_stats.input_length = len(req.input_ids)
                     req_stats.output_length = req.sampling_params.max_new_tokens
@@ -233,8 +256,8 @@ class C_SchedulerHook(BaseHook):
             now = time.time()
             if new_batch is not None:
                 for req in new_batch.reqs:
-                    req_stats = C_SchedulerHook.REQUEST_STATS[req.rid]
-                    req_stats.final_reused_tokens = req.cached_tokens
+                    req_stats = request_stats_manager.get_req_stats(req.rid)
+                    req_stats.final_device_hit_len = req.cached_tokens
                     if req_stats.queue_end == -1:
                         if C_SchedulerHook.SIM_MODE == SimulationMode.BLOCKING:
                             req_stats.queue_end = now
@@ -261,6 +284,18 @@ class C_SchedulerHook(BaseHook):
             )
 
             return new_batch
+
+        def wrapped_prefetch_kvcache(self, *args, **kwargs):
+            original_prefetch_kvcache(self, *args, **kwargs)
+
+            req = get_obj_from_args(
+                "sglang.srt.managers.schedule_batch.Req",
+                *args,
+                **kwargs,
+            )
+            req_stats = request_stats_manager.get_req_stats(req.rid)
+            req_stats.recv_device_hit_len = len(req.prefix_indices)
+            req_stats.recv_host_hit_len = req.host_hit_length
 
         def wrapped_run_batch(self, *args, **kwargs):
             ret = original_run_batch(self, *args, **kwargs)
@@ -354,7 +389,7 @@ class C_SchedulerHook(BaseHook):
                 # Request statistics
                 for req in batch.reqs:
                     if req.is_chunked == 0:
-                        req_stats = C_SchedulerHook.REQUEST_STATS[req.rid]
+                        req_stats = request_stats_manager.get_req_stats(req.rid)
                         req_stats.gen_token_latencies.append(
                             request_response_time
                             - req_stats.last_event_time  # queue duration
@@ -377,7 +412,7 @@ class C_SchedulerHook(BaseHook):
 
         def wrapped_profile(self, req, *args, **kwargs):
             stats: list[RequestStats] = []
-            for item in C_SchedulerHook.REQUEST_STATS.values():
+            for item in request_stats_manager.get_all_req_stats():
                 if item.rid is not None and item.input_length > 0:
                     stats.append(item)
 
@@ -427,7 +462,7 @@ class C_SchedulerHook(BaseHook):
                 logger.warning("No request statistics available.")
 
             StateManager.reset()
-            C_SchedulerHook.REQUEST_STATS.clear()
+            request_stats_manager.reset()
             C_SchedulerHook.ITERATION_STATS.clear()
             C_SchedulerHook.LAST_CPU_TS = 0
             C_SchedulerHook.LAST_FLUSH_TS = time.time()
@@ -451,4 +486,5 @@ class C_SchedulerHook(BaseHook):
         target.get_new_batch_prefill = wrapped_get_new_batch_prefill
         target.run_batch = wrapped_run_batch
         target.process_batch_result = wrapped_process_batch_result
+        target._prefetch_kvcache = wrapped_prefetch_kvcache
         target.profile = wrapped_profile

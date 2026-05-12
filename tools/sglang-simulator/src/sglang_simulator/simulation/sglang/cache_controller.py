@@ -3,7 +3,7 @@ from typing import Optional
 
 from sglang_simulator.hook import BaseHook
 from sglang_simulator.simulation.manager import ConfigManager, StateManager
-from sglang_simulator.simulation.sglang.scheduler import C_SchedulerHook
+from sglang_simulator.simulation.sglang.req_stats_manager import request_stats_manager
 
 
 class C_HiCacheController(BaseHook):
@@ -27,6 +27,10 @@ class C_HiCacheController(BaseHook):
 
     @classmethod
     def hook(cls, target):
+
+        original_terminate_prefetch = target.terminate_prefetch
+        original_storage_hit_query = target._storage_hit_query
+
         def override_backup_thread_func(self, *args, **kwargs):
             # Async thread: perform no action
             # The action will be performed by `handle_backup_operation`
@@ -94,9 +98,6 @@ class C_HiCacheController(BaseHook):
                     self.append_host_mem_release(
                         operation.host_indices[storage_hit_count:]
                     )
-                # update request states
-                req_stats = C_SchedulerHook.REQUEST_STATS[operation.request_id]
-                req_stats.prefetch_complete_tokens = operation.completed_tokens
 
             while remain_dur > 0:
                 try:
@@ -148,9 +149,6 @@ class C_HiCacheController(BaseHook):
                         # TODO: Track the prefetch operation according to the global clock
                         operation.mark_terminate()
                         remain_dur -= prefetch_dur
-                    # update request states
-                    req_stats = C_SchedulerHook.REQUEST_STATS[operation.request_id]
-                    req_stats.prefetch_complete_tokens = operation.completed_tokens
                     # Release host memory after current operation is finished
                     self.append_host_mem_release(
                         operation.host_indices[storage_hit_count:]
@@ -169,8 +167,24 @@ class C_HiCacheController(BaseHook):
             ]
             return self.storage_backend.batch_set(hash_values, data, extra_info)
 
+        def wrapped_terminate_prefetch(self, operator):
+            result = original_terminate_prefetch(self, operator)
+            # operation.completed_tokens, operation.hash_value = result
+            req_stats = request_stats_manager.get_req_stats(operator.request_id)
+            req_stats.final_storage_hit_len = result[0]
+            return result
+
+        def wrapped_storage_hit_query(self, operator):
+            result = original_storage_hit_query(self, operator)
+            # hash_value, storage_query_count = result
+            req_stats = request_stats_manager.get_req_stats(operator.request_id)
+            req_stats.recv_storage_hit_len = result[1]
+            return result
+
         target.prefetch_thread_func = override_prefetch_thread_func
         target.backup_thread_func = override_backup_thread_func
         target.handle_backup_operation = handle_backup_operation
         target.handle_prefetch_operation = handle_prefetch_operation
         target._generic_page_set = override_generic_page_set
+        target.terminate_prefetch = wrapped_terminate_prefetch
+        target.storage_hit_query = wrapped_storage_hit_query

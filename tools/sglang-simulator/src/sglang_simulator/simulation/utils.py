@@ -57,7 +57,9 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
     total_output = 0
     completed = 0
     total_reused_tokens = 0
-    total_disk_hit_tokens = 0
+    total_device_hit_tokens = 0
+    total_host_hit_tokens = 0
+    total_storage_hit_tokens = 0
     queue_durs = []
     for req in requests:
         if not req.is_complete():
@@ -73,8 +75,10 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
         total_dur_s = max(total_dur_s, req.last_event_time)
         total_input += req.input_length
         total_output += req.output_length
-        total_reused_tokens += req.final_reused_tokens
-        total_disk_hit_tokens += req.prefetch_complete_tokens
+        total_reused_tokens += req.final_device_hit_len
+        total_device_hit_tokens += req.final_device_hit_len - req.final_host_hit_len
+        total_host_hit_tokens += req.final_host_hit_len - req.final_storage_hit_len
+        total_storage_hit_tokens += req.final_storage_hit_len
     return {
         "num_requests": len(requests),
         "completed": completed,
@@ -88,8 +92,14 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
         "prefix_cache_reused_ratio": (
             0 if total_input == 0 else total_reused_tokens / total_input
         ),
-        "disk_prefetch_ratio": (
-            0 if total_input == 0 else total_disk_hit_tokens / total_input
+        "kv_cache_storage_hit_ratio": (
+            0 if total_input == 0 else total_storage_hit_tokens / total_input
+        ),
+        "kv_cache_host_hit_ratio": (
+            0 if total_input == 0 else total_host_hit_tokens / total_input
+        ),
+        "kv_cache_device_hit_ratio": (
+            0 if total_input == 0 else total_device_hit_tokens / total_input
         ),
         "mean_ttft_ms": np.mean(ttfts or 0) * 1000,
         "median_ttft_ms": np.median(ttfts or 0) * 1000,

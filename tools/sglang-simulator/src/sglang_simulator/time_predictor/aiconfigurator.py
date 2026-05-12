@@ -266,8 +266,12 @@ class AIConfiguratorTimePredictor(InferTimePredictor):
             infer_time *= self.decode_scale_factor
         else:
             infer_time *= self.prefill_scale_factor
-            
+
         if not batch.is_decode():
-            infer_time = max(infer_time, self.prefill_min_latency) if infer_time > 0 else infer_time
-            
+            infer_time = (
+                max(infer_time, self.prefill_min_latency)
+                if infer_time > 0
+                else infer_time
+            )
+
         return infer_time / 1e3

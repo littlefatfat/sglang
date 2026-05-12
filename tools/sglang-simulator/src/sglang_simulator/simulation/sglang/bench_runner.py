@@ -33,6 +33,7 @@ if not torch.cuda.is_available():
 sglang_simulator_hook.install_class_hooks(
     [
         scheduler.C_SchedulerHook,
+        scheduler.C_SglangPrefillAdderHook,
         model_runner.C_ModelRunnerHook,
         hicache_storage.C_StorageBackendFactory,
         cache_controller.C_HiCacheController,
