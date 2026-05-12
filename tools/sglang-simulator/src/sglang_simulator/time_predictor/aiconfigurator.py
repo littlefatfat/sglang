@@ -122,6 +122,7 @@ class AIConfiguratorTimePredictor(InferTimePredictor):
         database_mode: DatabaseMode | str = DatabaseMode.SILICON,
         prefill_scale_factor: float = 1,
         decode_scale_factor: float = 1,
+        prefill_min_latency: float = 0,
         workload_distribution: str = "balanced",
         enable_oom_check: bool = False,
     ):
@@ -129,7 +130,7 @@ class AIConfiguratorTimePredictor(InferTimePredictor):
 
         self.prefill_scale_factor = prefill_scale_factor
         self.decode_scale_factor = decode_scale_factor
-
+        self.prefill_min_latency = prefill_min_latency
         if isinstance(database_mode, str):
             database_mode = self._get_database_mode(database_mode)
 
@@ -265,4 +266,8 @@ class AIConfiguratorTimePredictor(InferTimePredictor):
             infer_time *= self.decode_scale_factor
         else:
             infer_time *= self.prefill_scale_factor
+            
+        if not batch.is_decode():
+            infer_time = max(infer_time, self.prefill_min_latency) if infer_time > 0 else infer_time
+            
         return infer_time / 1e3
