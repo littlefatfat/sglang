@@ -72,7 +72,9 @@ class SGLangBenchmarkRunner(BaseBenchmarkRunner):
         self.engine.flush_cache()
 
     def clear_hicache_storage(self):
-        self.engine.tokenizer_manager.clear_hicache_storage()
+        self.engine.loop.run_until_complete(
+            self.engine.tokenizer_manager.clear_hicache_storage()
+        )
 
     def get_request(
         self,
