@@ -166,6 +166,7 @@ class ConfigManager:
             database_mode = predictor_config.get("database_mode", "SILICON")
             prefill_scale_factor = predictor_config.get("prefill_scale_factor", 1)
             decode_scale_factor = predictor_config.get("decode_scale_factor", 1)
+            prefill_min_latency = predictor_config.get("prefill_min_latency", 0)
             workload_distribution = predictor_config.get(
                 "workload_distribution", "balanced"
             )
@@ -179,6 +180,7 @@ class ConfigManager:
                 database_mode=database_mode,
                 prefill_scale_factor=prefill_scale_factor,
                 decode_scale_factor=decode_scale_factor,
+                prefill_min_latency=prefill_min_latency,
                 workload_distribution=workload_distribution,
                 enable_oom_check=enable_oom_check,
             )
