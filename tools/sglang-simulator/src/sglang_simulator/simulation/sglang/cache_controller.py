@@ -77,33 +77,49 @@ class C_HiCacheController(BaseHook):
             )
             if chunked_prefetch_operation is not None:
                 operation = chunked_prefetch_operation["operation"]
-                storage_hit_count = chunked_prefetch_operation["storage_hit_count"]
-                completed_tokens, prefetch_dur = (
-                    C_HiCacheController.calc_prefetch_pages(
-                        (storage_hit_count - operation.completed_tokens),
-                        C_HiCacheController.KV_CACHE_BYTES,
-                        remain_dur,
-                        C_HiCacheController.DISK_READ_BANDWIDTH_BYTES,
-                    )
-                )
-                if completed_tokens < storage_hit_count - operation.completed_tokens:
-                    operation.completed_tokens += completed_tokens
-                    remain_dur = 0
-                else:
-                    operation.completed_tokens = int(storage_hit_count)
-                    operation.mark_terminate()
-                    remain_dur -= prefetch_dur
+                if operation._terminated_flag:
                     setattr(self, "chunked_prefetch_operation", None)
-                    # Release host memory after current operation is finished
                     self.append_host_mem_release(
-                        operation.host_indices[storage_hit_count:]
+                        operation.host_indices[int(operation.completed_tokens) :]
                     )
+                else:
+                    storage_hit_count = chunked_prefetch_operation["storage_hit_count"]
+                    completed_tokens, prefetch_dur = (
+                        C_HiCacheController.calc_prefetch_pages(
+                            (storage_hit_count - operation.completed_tokens),
+                            C_HiCacheController.KV_CACHE_BYTES,
+                            remain_dur,
+                            C_HiCacheController.DISK_READ_BANDWIDTH_BYTES,
+                        )
+                    )
+                    if (
+                        completed_tokens
+                        < storage_hit_count - operation.completed_tokens
+                    ):
+                        operation.completed_tokens += completed_tokens
+                        remain_dur = 0
+                    else:
+                        operation.completed_tokens = int(storage_hit_count)
+                        operation.mark_terminate()
+                        remain_dur -= prefetch_dur
+                        setattr(self, "chunked_prefetch_operation", None)
+                        # Release host memory after current operation is finished
+                        self.append_host_mem_release(
+                            operation.host_indices[storage_hit_count:]
+                        )
 
             while remain_dur > 0:
                 try:
                     operation = self.prefetch_queue.get(block=False)
                     if operation is None:
                         return
+
+                    # Ignore terminated operation
+                    if operation._terminated_flag:
+                        self.append_host_mem_release(
+                            operation.host_indices[int(operation.completed_tokens) :]
+                        )
+                        continue
 
                     hash_value, storage_hit_count = self._storage_hit_query(operation)
                     # not to prefetch if not enough benefits
@@ -149,10 +165,10 @@ class C_HiCacheController(BaseHook):
                         # TODO: Track the prefetch operation according to the global clock
                         operation.mark_terminate()
                         remain_dur -= prefetch_dur
-                    # Release host memory after current operation is finished
-                    self.append_host_mem_release(
-                        operation.host_indices[storage_hit_count:]
-                    )
+                        # Release host memory after current operation is finished
+                        self.append_host_mem_release(
+                            operation.host_indices[operation.completed_tokens :]
+                        )
 
                 except Empty:
                     return
