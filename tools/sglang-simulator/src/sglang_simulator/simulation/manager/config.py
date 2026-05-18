@@ -44,6 +44,22 @@ class ConfigManager:
         cls._model_info = model
 
     @classmethod
+    def set_dsv4_model_info(
+        cls,
+        qk_nope_head_dim: int=0,
+        qk_rope_head_dim: int=0,
+        indexer_head_dim: int=0
+    ):
+        cls._model_info.qk_nope_head_dim = qk_nope_head_dim
+        cls._model_info.qk_rope_head_dim = qk_rope_head_dim
+        cls._model_info.indexer_head_dim = indexer_head_dim
+
+    @classmethod
+    def get_dsv4_model_info(cls):
+        return (cls._model_info.qk_nope_head_dim, cls._model_info.qk_rope_head_dim, 
+                cls._model_info.indexer_head_dim)
+
+    @classmethod
     def get_model_info(cls) -> ModelInfo | None:
         return cls._model_info
 

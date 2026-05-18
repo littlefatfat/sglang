@@ -28,13 +28,13 @@ class C_ModelRunnerHook(BaseHook):
             self.dtype = self.model_config.dtype
             self.configure_kv_cache_dtype()
 
+            if ConfigManager.get_model_info() is None:
+                model = resolve_model_info(self.model_config)
+                ConfigManager.set_model_info(model)
+
             if self.server_args.max_total_tokens is not None:
                 self.max_total_num_tokens = self.server_args.max_total_tokens
             else:
-                if ConfigManager.get_model_info() is None:
-                    model = resolve_model_info(self.model_config)
-                    ConfigManager.set_model_info(model)
-
                 model = ConfigManager.get_model_info()
                 hw = ConfigManager.get_accelerator_info()
                 config = resolve_scheduler_config(
@@ -53,10 +53,28 @@ class C_ModelRunnerHook(BaseHook):
 
             if self.is_hybrid_swa:
                 self.sliding_window_size = self.model_config.sliding_window_size
-                if self.model_config.is_swa_with_compressed_attention:
-                    self.set_num_tokens_hybrid_swa_compress()
-                else:
-                    self.set_num_tokens_hybrid_swa()
+                # if self.model_config.is_swa_with_compressed_attention:
+                #     self.set_num_tokens_hybrid_swa_compress()
+                # else:
+                #     self.set_num_tokens_hybrid_swa()
+
+                # The method names for setting parameters such as num_token vary significantly 
+                # across different versions. Here, we directly assign values to these parameters. 
+                # In the future, we may attempt to decouple or adapt to different versions 
+                # to ensure consistent behavior.
+                self.memory_pool_config = self._resolve_memory_pool_config(
+                    10
+                )
+                self.max_total_num_tokens = self.memory_pool_config.max_total_num_tokens
+                self.max_running_requests = self.memory_pool_config.max_running_requests
+                self.full_max_total_num_tokens = self.memory_pool_config.full_max_total_num_tokens
+                self.swa_max_total_num_tokens = self.memory_pool_config.swa_max_total_num_tokens
+
+                self.c4_max_total_num_tokens = self.memory_pool_config.c4_max_total_num_tokens
+                self.c128_max_total_num_tokens = self.memory_pool_config.c128_max_total_num_tokens
+                self.c4_state_pool_size = self.memory_pool_config.c4_state_pool_size
+                self.c128_state_pool_size = self.memory_pool_config.c128_state_pool_size
+                self.state_dtype = torch.float32
 
             max_num_reqs = min(
                 max(
@@ -110,6 +128,15 @@ class C_ModelRunnerHook(BaseHook):
                 print(
                     f"[override_initialize] {self.model_config.qk_nope_head_dim=}, {self.model_config.qk_rope_head_dim=}, {self.model_config.index_head_dim=}, {self.device=}, {self.swa_max_total_num_tokens=}"
                 )
+                if self.is_draft_worker:
+                    from sglang.srt.models.deepseek_v4_nextn import (
+                        COMPRESS_RATIO_NEXTN_LAYER,
+                    )
+                    compression_ratios = [
+                        COMPRESS_RATIO_NEXTN_LAYER
+                    ] * self.num_effective_layers
+                else:
+                    compression_ratios = self.model_config.compress_ratios
                 self.token_to_kv_pool = DeepSeekV4TokenToKVPool(
                     max_num_reqs=self.server_args.max_running_requests,
                     swa_size=self.swa_max_total_num_tokens,
@@ -127,7 +154,7 @@ class C_ModelRunnerHook(BaseHook):
                     layer_num=self.num_effective_layers,
                     device=self.device,
                     enable_memory_saver=self.server_args.enable_memory_saver,
-                    compression_ratios=[0] * self.num_effective_layers,
+                    compression_ratios=compression_ratios,
                     start_layer=self.start_layer,
                     end_layer=self.end_layer,
                     enable_hisparse=self.enable_hisparse,
