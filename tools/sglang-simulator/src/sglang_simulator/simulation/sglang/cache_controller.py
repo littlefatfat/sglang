@@ -185,6 +185,8 @@ class C_HiCacheController(BaseHook):
 
         def wrapped_terminate_prefetch(self, operator):
             result = original_terminate_prefetch(self, operator)
+            # This value may be a float if prefetch progress is interrupted by HiRadixCache.check_prefetch_progress.
+            result = (int(result[0]), result[1])
             # operation.completed_tokens, operation.hash_value = result
             req_stats = request_stats_manager.get_req_stats(operator.request_id)
             req_stats.final_storage_hit_len = result[0]
