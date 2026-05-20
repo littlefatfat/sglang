@@ -69,6 +69,7 @@ MAP_DTYPE_TO_CommQunatMode = {
     DataType.FP16: CommQuantMode.half,
     DataType.BF16: CommQuantMode.half,
     DataType.FP8: CommQuantMode.fp8,
+    DataType.FP4: CommQuantMode.fp8,  # FIXME
     DataType.INT8: CommQuantMode.int8,
 }
 
