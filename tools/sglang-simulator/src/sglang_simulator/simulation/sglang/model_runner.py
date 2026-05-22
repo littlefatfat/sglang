@@ -121,7 +121,7 @@ class C_ModelRunnerHook(BaseHook):
                 assert (
                     self.page_size == 256
                 ), "In paged swa mode, page_size must be 256."
-                from sglang.srt.mem_cache.deepseekv4_memory_pool import (
+                from sglang.srt.mem_cache.deepseek_v4_memory_pool import (
                     DeepSeekV4TokenToKVPool,
                 )
 

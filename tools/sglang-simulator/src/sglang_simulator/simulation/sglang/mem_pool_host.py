@@ -140,7 +140,7 @@ class C_HostKVCacheHook(BaseHook):
 
 class C_DeepSeekV4SingleKVPoolHook(BaseHook):
     HOOK_CLASS_NAME = "DeepSeekV4SingleKVPool"
-    HOOK_MODULE_NAME = "sglang.srt.mem_cache.deepseekv4_memory_pool"
+    HOOK_MODULE_NAME = "sglang.srt.mem_cache.deepseek_v4_memory_pool"
 
     @classmethod
     def hook(cls, target):
@@ -385,7 +385,7 @@ class C_DeepSeekV4StateHostPoolHook(BaseHook):
         def get_size_per_token(self):
             if self.pool_name in ['deepseek_v4_c4_state', 'deepseek_v4_c128_state']:
                 return self.size_per_token * 256
-            elif self.pool_name in ['deepseek_v4_indexer_state']:
+            elif self.pool_name in ['deepseek_v4_indexer_state', 'deepseek_v4_c4_indexer_state']:
                 return self.size_per_token * 128
             else:
                 # return self.size_per_token

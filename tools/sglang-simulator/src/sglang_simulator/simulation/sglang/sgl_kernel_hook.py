@@ -15,16 +15,3 @@ class M_SGLangKernelLoadUtilHook(BaseHook):
             pass
 
         target._load_architecture_specific_ops = override_load_architecture_specific_ops
-
-
-class M_SGLangCommonHook(BaseHook):
-    HOOK_CLASS_NAME = ""
-    HOOK_MODULE_NAME = "sglang.srt.utils.common"
-
-    @classmethod
-    def hook(cls, target):
-        def override_support_triton(backend: str) -> bool:
-            # print(f"[override_support_triton] {backend=}")
-            return backend not in ["torch_native", "intel_amx", "compressed", "dsv4"]
-    
-        target.support_triton = override_support_triton
