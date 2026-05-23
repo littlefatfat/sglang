@@ -25,7 +25,15 @@ class ModelInfo:
     qk_rope_head_dim: Optional[int] = None
     qk_nope_head_dim: Optional[int] = None
 
+    # DSv4-specific (DSv4-Pro: per-layer compression ratios + sparse indexer + SWA)
+    compression_ratios: Optional[list] = None  # per-layer: 4 or 128
+    indexer_head_dim: Optional[int] = None
+    window_size: Optional[int] = None
+
     torch_dtype: Optional[str] = None
 
     def is_mla(self) -> bool:
         return self.attention_arch == "MLA"
+
+    def is_dsv4(self) -> bool:
+        return self.compression_ratios is not None

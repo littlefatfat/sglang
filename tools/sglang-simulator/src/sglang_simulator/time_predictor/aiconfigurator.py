@@ -106,6 +106,9 @@ def get_perf_model(
         workload_distribution=workload_distribution,
     )
 
+    # print(f"Model config for AIConfigurator: {model_config}") # mry debug
+    logger.info(f"Model config for AIConfigurator: {model_config}")
+
     return models.get_model(
         model_path=model.model_path,
         model_config=model_config,
@@ -148,6 +151,7 @@ class AIConfiguratorTimePredictor(InferTimePredictor):
             raise ValueError("Failed to initialize the database.")
 
         database.set_default_database_mode(database_mode)
+        logger.info(f"AIC Database mode: {database_mode}")
 
         # --- Replace the original function to support more flexible request input. --- #
 
@@ -257,6 +261,55 @@ class AIConfiguratorTimePredictor(InferTimePredictor):
         return latency_dict
 
     def predict_infer_time(self, batch: ScheduleBatch) -> float:
+        # ===== REPLAY PATCH (Mayoi diagnose 2026-05-24) =====
+        import os, json as _json
+        if not hasattr(self, '_replay_table'):
+            _p = os.environ.get('SIM_REPLAY_TABLE')
+            self._replay_table = _json.load(open(_p)) if (_p and os.path.exists(_p)) else None
+            self._replay_stats = {"hit": 0, "miss": 0, "miss_keys_sample": []}
+        if self._replay_table is not None:
+            _key = _json.dumps(sorted([[req.extend_length, req.past_kv_length] for req in batch.reqs]))
+            if _key in self._replay_table:
+                self._replay_stats["hit"] += 1
+                return self._replay_table[_key]
+            else:
+                self._replay_stats["miss"] += 1
+                if len(self._replay_stats["miss_keys_sample"]) < 5:
+                    self._replay_stats["miss_keys_sample"].append(_key)
+        # ===== REPLAY PATCH END =====
+        # ===== ML LATENCY MODEL PATCH (Mayoi 2026-05-24) =====
+        if not hasattr(self, '_ml_model'):
+            import joblib as _jl
+            _mp = os.environ.get('SIM_LATENCY_MODEL')
+            self._ml_model = _jl.load(_mp) if (_mp and os.path.exists(_mp)) else None
+            self._ml_stats = {"calls": 0}
+        if self._ml_model is not None:
+            _exts = [req.extend_length for req in batch.reqs]
+            _pasts = [req.past_kv_length for req in batch.reqs]
+            if _exts:
+                import math as _math
+                _bs = len(_exts); _se = sum(_exts); _sp = sum(_pasts)
+                _sep = sum(e*p for e,p in zip(_exts, _pasts))
+                _se2 = sum(e*e for e in _exts); _sp2 = sum(p*p for p in _pasts)
+                _sattn = sum(e*(p + e/2) for e,p in zip(_exts, _pasts))
+                _maxe = max(_exts); _maxp = max(_pasts)
+                _mine = min(_exts); _minp = min(_pasts)
+                _feats = [
+                    _bs, _se, _maxe, _mine,
+                    _sp, _maxp, _minp,
+                    _sep, _se2, _sp2,
+                    _sattn,
+                    _se * _maxp,
+                    _math.log1p(_sp),
+                    _math.log1p(_sattn),
+                    _bs * _se,
+                    _maxp - _minp,
+                    int(all(e == 1 for e in _exts)),
+                    int(any(e > 1 for e in _exts)),
+                ]
+                self._ml_stats["calls"] += 1
+                return float(self._ml_model['model'].predict([_feats])[0])
+        # ===== ML PATCH END =====
         latency_dict = self.predict_infer_latency_dict(batch)
         infer_time = sum(latency_dict.values())
 
