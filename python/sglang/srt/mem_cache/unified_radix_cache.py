@@ -248,6 +248,10 @@ class UnifiedRadixCache(BasePrefixCache):
         self.reset()
         logger.info(f"Init Unified RadixTree with components {self.tree_components}")
 
+    def clear_storage_backend(self) -> None:
+        """No-op: storage backend not used in non-storage L2 hicache mode."""
+        pass
+
     def reset(self) -> None:
         self._reset_full()
 
