@@ -30,9 +30,6 @@ if not torch.cuda.is_available():
     sglang_simulator_hook.install_module_hooks(
         [sgl_kernel_hook.M_SGLangKernelLoadUtilHook]
     )
-sglang_simulator_hook.install_module_hooks(
-    [sgl_kernel_hook.M_SGLangCommonHook]
-)
 sglang_simulator_hook.install_class_hooks(
     [
         scheduler.C_SchedulerHook,
@@ -51,7 +48,9 @@ sglang_simulator_hook.install_class_hooks(
 )
 
 
-SGLANG_SIMULATOR_OUTPUT_DIR = "/tmp/sglang_simulator/output"
+SGLANG_SIMULATOR_OUTPUT_DIR = os.getenv(
+    "SGLANG_SIMULATOR_OUTPUT_DIR", "/tmp/sglang_simulator/output"
+)
 SIMULATION_METRICS_PATH = f"{SGLANG_SIMULATOR_OUTPUT_DIR}/metrics.json"
 os.environ["SGLANG_SIMULATOR_OUTPUT_DIR"] = SGLANG_SIMULATOR_OUTPUT_DIR
 

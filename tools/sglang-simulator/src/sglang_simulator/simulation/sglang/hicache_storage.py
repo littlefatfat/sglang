@@ -2,6 +2,7 @@ import os
 from typing import Any, List, Optional
 
 from sglang_simulator.hook import BaseHook
+from sglang_simulator.simulation.manager.env import Envs
 from sglang_simulator.utils.logger import get_logger
 
 logger = get_logger("hisim")
@@ -24,7 +25,7 @@ class MockHiCacheStorage:
     def __init__(self, *args, **kwargs):
 
         self.storage: set = set()
-        self.storage_file_path: str = "/tmp/sglang_simulator/hicache_storage_keys.txt"
+        self.storage_file_path: str = Envs.hicache_storage_keys_path()
         os.makedirs(os.path.dirname(self.storage_file_path), exist_ok=True)
 
         if os.path.exists(self.storage_file_path):

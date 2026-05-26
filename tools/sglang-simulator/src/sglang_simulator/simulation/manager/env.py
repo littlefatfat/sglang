@@ -20,7 +20,7 @@ class Envs:
     @classmethod
     def output_dir(cls) -> str:
         SGLANG_SIMULATOR_OUTPUT_DIR = os.getenv(
-            "SGLANG_SIMULATOR_OUTPUT_DIR", "/tmp/sgl_simulator/output/"
+            "SGLANG_SIMULATOR_OUTPUT_DIR", "/tmp/sglang_simulator/output/"
         )
         SGLANG_SIMULATOR_OUTPUT_DIR = os.path.realpath(SGLANG_SIMULATOR_OUTPUT_DIR)
         if os.path.exists(SGLANG_SIMULATOR_OUTPUT_DIR) and os.path.isfile(
@@ -34,6 +34,14 @@ class Envs:
             )
         os.makedirs(SGLANG_SIMULATOR_OUTPUT_DIR, exist_ok=True)
         return SGLANG_SIMULATOR_OUTPUT_DIR
+
+    @classmethod
+    def hicache_storage_keys_path(cls) -> str:
+        SGLANG_SIMULATOR_HICACHE_STORAGE_KEYS_PATH = os.getenv(
+            "SGLANG_SIMULATOR_HICACHE_STORAGE_KEYS_PATH",
+            "/tmp/sglang_simulator/hicache_storage_keys.txt",
+        )
+        return SGLANG_SIMULATOR_HICACHE_STORAGE_KEYS_PATH
 
     @classmethod
     def simulation_mode(cls) -> str:

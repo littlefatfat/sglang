@@ -388,7 +388,7 @@ class C_SchedulerHook(BaseHook):
                     request_response_time = StateManager.get_global_clock()
                 # Request statistics
                 for req in batch.reqs:
-                    if req.is_chunked == 0:
+                    if len(req.output_ids) != 0:  # not chunked
                         req_stats = request_stats_manager.get_req_stats(req.rid)
                         req_stats.gen_token_latencies.append(
                             request_response_time
