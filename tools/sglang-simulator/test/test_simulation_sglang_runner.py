@@ -27,7 +27,7 @@ def test_benchmark_sglang():
             hicache_ratio=2,
             hicache_storage_backend="file",
             hicache_storage_prefetch_policy="wait_complete",
-            max_total_tokens=8192,
+            max_total_tokens=10000,
             page_size=2,
         )
     )
@@ -49,8 +49,8 @@ def test_benchmark_sglang():
 
     # Split requests for cache tests
     cached_ds = SimpleDataset(reqs=dataset[:8])
-    evict_l1_ds = SimpleDataset(reqs=dataset[8:16])
-    evict_l2_ds = SimpleDataset(reqs=dataset[16:32])
+    evict_l1_ds = SimpleDataset(reqs=dataset[10:20])
+    evict_l2_ds = SimpleDataset(reqs=dataset[20:40])
 
     # First run: warm up cache
     metrics = runner.benchmark(benchmark_config, dataset=cached_ds)
