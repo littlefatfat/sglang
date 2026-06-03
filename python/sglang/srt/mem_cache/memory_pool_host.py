@@ -37,13 +37,14 @@ from sglang.srt.mem_cache.memory_pool import (
     MLATokenToKVPool,
     NSATokenToKVPool,
 )
-from sglang.srt.utils import is_cuda, is_mps, is_npu, is_xpu
+from sglang.srt.utils import is_cuda, is_mps, is_npu, is_xpu, is_macos
 
 _is_cuda = is_cuda()
 _is_npu = is_npu()
 _is_xpu = is_xpu()
 _is_mps = is_mps()
-if not (_is_npu or _is_xpu or _is_mps):
+_is_macos = is_macos()
+if not (_is_npu or _is_xpu or _is_mps or _is_macos):
     from sgl_kernel.kvcacheio import (
         transfer_kv_all_layer,
         transfer_kv_all_layer_direct_lf_pf,
@@ -192,7 +193,7 @@ class HostKVCache(abc.ABC):
         host_mem = psutil.virtual_memory()
         requested_bytes = self.size * self.size_per_token
         available_bytes = host_mem.available - HICACHE_HOST_MEMORY_RESERVE_BYTES
-        if requested_bytes > available_bytes:
+        if not _is_macos and requested_bytes > available_bytes:
             raise ValueError(
                 f"Not enough host memory available. Requesting "
                 f"{requested_bytes / 1e9:.2f} GB but only have "

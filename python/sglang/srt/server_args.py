@@ -54,6 +54,7 @@ from sglang.srt.utils.common import (
     is_hopper_with_cuda_12_3,
     is_host_cpu_arm64,
     is_mps,
+    is_macos,
     is_musa,
     is_no_spec_infer_or_topk_one,
     is_npu,
@@ -1808,7 +1809,7 @@ class ServerArgs:
                     self.attention_backend = "nsa"
                     logger.info("Use nsa attention backend for DeepSeek with DSA.")
 
-                if not is_npu() and not is_xpu():  # CUDA or ROCm GPU
+                if not is_npu() and not is_xpu() and not is_macos():  # CUDA or ROCm GPU
                     if self.enable_nsa_prefill_context_parallel:
                         logger.warning(
                             "Context parallel feature is still under experiment. It has only been verified on Hopper platform."

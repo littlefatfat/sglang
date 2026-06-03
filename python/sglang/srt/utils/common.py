@@ -197,6 +197,11 @@ def is_mps() -> bool:
     return torch.backends.mps.is_available()
 
 
+@lru_cache(maxsize=1)
+def is_macos() -> bool:
+    return sys.platform == "darwin"
+
+
 def is_float4_e2m1fn_x2(dtype) -> bool:
     """Check if dtype is float4_e2m1fn_x2 and CUDA is available."""
     target_dtype = getattr(torch, "float4_e2m1fn_x2", None)
@@ -3356,13 +3361,18 @@ def get_physical_cpus_by_numa():
 
 # Only physical cores are used. Logical cores are excluded.
 def get_cpu_ids_by_node():
-    node_to_cpus = get_physical_cpus_by_numa()
-    # Sort by NUMA node index
-    cpu_ids = [
-        ",".join(map(str, sorted(node_to_cpus[node]))) for node in sorted(node_to_cpus)
-    ]
-
-    # ['0,1,2,3', '4,5,6,7', '8,9,10,11', '12,13,14,15', '16,17,18,19', '20,21,22,23']
+    if is_macos():
+        # macOS: no NUMA, all cores in one node
+        import subprocess
+        n_cores = int(subprocess.check_output(['sysctl', '-n', 'hw.physicalcpu']).decode().strip())
+        cpu_ids = [",".join(map(str, range(n_cores)))]
+    else:
+        node_to_cpus = get_physical_cpus_by_numa()
+        # Sort by NUMA node index
+        cpu_ids = [
+            ",".join(map(str, sorted(node_to_cpus[node]))) for node in sorted(node_to_cpus)
+        ]
+        # ['0,1,2,3', '4,5,6,7', '8,9,10,11', '12,13,14,15', '16,17,18,19', '20,21,22,23']
     return cpu_ids
 
 
