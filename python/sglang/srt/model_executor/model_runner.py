@@ -196,6 +196,7 @@ from sglang.srt.utils import (
     is_hip,
     is_host_cpu_arm64,
     is_npu,
+    is_macos,
     log_info_on_rank0,
     monkey_patch_p2p_access_check,
     require_attn_tp_gather,
@@ -1230,7 +1231,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         set_torch_symm_mem_all_reduce(self.server_args.enable_torch_symm_mem)
 
         if not self.is_draft_worker:
-            if self.device == "cpu":
+            if self.device == "cpu" and not is_macos():
                 if _is_cpu_amx_available or _is_cpu_arm64:
                     # Bind OpenMP threads to CPU cores
                     torch.ops.sgl_kernel.init_cpu_threads_env(self.local_omp_cpuid)
