@@ -106,6 +106,10 @@ class ConfigManager:
             "backend_name",
             "backend_version",
             "kv_bytes_per_token_per_gpu",
+            "hicache_ratio",
+            "moe_quant_mode_override",
+            "fmha_quant_mode_override",
+            "comm_quant_mode_override",
         ]:
             field_value = external_config.get(field_name)
             if field_value is not None:
@@ -202,6 +206,8 @@ class ConfigManager:
                 config=sched_config,
                 database_path=predictor_config.get("database_path"),
                 miss_fallback_seconds=predictor_config.get("miss_fallback_seconds", 0.0),
+                miss_strategy=predictor_config.get("miss_strategy", "zero"),
+                miss_knn_k=predictor_config.get("miss_knn_k", 3),
             )
         elif predictor_config.get("name") == "gbr":
             from sglang_simulator.time_predictor.gbr import GBRTimePredictor

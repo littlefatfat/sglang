@@ -11,6 +11,12 @@ class SchedulerConfig:
         None  # Data type for model weights and activations. If none is set, it will be automatically detected.
     )
     kv_cache_data_type: Optional[DataType] = None
+    # AIC adapter overrides — bypass MAP_DTYPE_TO_* lookup when set.
+    # Pass aiconfigurator MoEQuantMode/FMHAQuantMode/CommQuantMode enum name as string
+    # (e.g. 'w4a8_mxfp4_mxfp8' for DSv4-Pro on Blackwell).
+    moe_quant_mode_override: Optional[str] = None
+    fmha_quant_mode_override: Optional[str] = None
+    comm_quant_mode_override: Optional[str] = None
     mem_fraction_static: Optional[float] = None
     max_total_tokens: Optional[int] = None
 
@@ -30,6 +36,10 @@ class SchedulerConfig:
     # Useful for models where sglang doesn't expose its KV calculator output
     # (e.g. GlmMoeDsa) and we want metrics to match the live sglang server.
     kv_bytes_per_token_per_gpu: Optional[float] = None
+
+    # L2 host KV pool sizing: host_pool_tokens = hicache_ratio * max_total_tokens.
+    hicache_ratio: Optional[float] = None
+    enable_hierarchical_cache: Optional[bool] = None
 
     # framework backend
     backend_name: str = "sglang"
