@@ -468,14 +468,15 @@ class C_SchedulerHook(BaseHook):
 
             now = time.time()
             # Step CPU Overhead
-            C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST = (
-                0.01  # (tmp): use 10ms currently
-            )
-            StateManager.step_global_clock(
-                process_batch_result_end
-                - process_batch_result_start
-                + C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST
-            )
+            # C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST = (
+            #     0.01  # (tmp): use 10ms currently
+            # )
+            # StateManager.step_global_clock(
+            #     process_batch_result_end
+            #     - process_batch_result_start
+            #     + C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST
+            # )
+            StateManager.step_global_clock(now - StateManager.get_last_real_time_ts())
             StateManager.set_last_real_time_ts(now)
 
             return ret
