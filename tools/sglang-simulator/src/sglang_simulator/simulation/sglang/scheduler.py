@@ -229,6 +229,8 @@ class C_SchedulerHook(BaseHook):
 
     ITERATION_STATS: list[dict] = []
     TOTAL_PREDICTOR_TIME_COST = 0
+    GET_NEW_BATCH_PREFILL_TIME_COST = 0
+
     SIMULATION_BATCH: SimulationScheduleBatch = None
     OVERLAP_SCHEDULE: bool = False
     SIM_MODE = SimulationMode(Envs.simulation_mode())
@@ -300,7 +302,12 @@ class C_SchedulerHook(BaseHook):
             return C_SchedulerHook.REQ_DISPATCHER.dispatch()
 
         def wrapped_get_new_batch_prefill(self, *args, **kwargs):
+            start = time.perf_counter()
             new_batch = original_get_new_batch_prefill(self, *args, **kwargs)
+            C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST = (
+                time.perf_counter() - start
+            )
+
             now = time.time()
             if new_batch is not None:
                 for req in new_batch.reqs:
@@ -406,7 +413,9 @@ class C_SchedulerHook(BaseHook):
             return ret
 
         def wrapped_process_batch_result(self, *args, **kwargs):
+            process_batch_result_start = time.perf_counter()
             ret = original_process_batch_result(self, *args, **kwargs)
+            process_batch_result_end = time.perf_counter()
 
             batch = get_obj_from_args(
                 "sglang.srt.managers.schedule_batch.ScheduleBatch", *args, **kwargs
@@ -427,25 +436,11 @@ class C_SchedulerHook(BaseHook):
                         )
                     )
                     StateManager.step_global_clock(current_inference_dur)
-                    # D2H (write_through backup) runs async on HiCacheController's
-                    # backup_queue / write_stream; stream_output returns the first
-                    # token without synchronizing on it (verified in real sglang's
-                    # scheduler_output_processor_mixin.py:process_batch_result_prefill).
-                    # In overlap mode, backup also runs concurrent with subsequent
-                    # inference on a separate stream, so it doesn't advance the
-                    # wall clock either.
-                    request_response_time = StateManager.get_global_clock()
                 else:
-                    # Serial mode: H2D + forward block the first token return.
-                    # D2H still happens after forward but the token is already returned.
                     StateManager.step_global_clock(
                         hicache_l2_load_dur + current_inference_dur
                     )
-                    request_response_time = StateManager.get_global_clock()
-                    # D2H delays the next iteration's start (no overlap to hide it),
-                    # so advance global_clock but DO NOT include it in this request's
-                    # response_time.
-                    StateManager.step_global_clock(hicache_l2_backup_dur)
+                request_response_time = StateManager.get_global_clock()
                 # Request statistics
                 for req in batch.reqs:
                     if len(req.output_ids) != 0:  # not chunked
@@ -465,9 +460,24 @@ class C_SchedulerHook(BaseHook):
                         "forward_latency": current_inference_dur,
                         "l2_load_latency": hicache_l2_load_dur,
                         "l2_backup_latency": hicache_l2_backup_dur,
+                        "preprocess_latency": C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST,
+                        "postprocess_latency": process_batch_result_end
+                        - process_batch_result_start,
                     }
                 )
-            StateManager.set_last_real_time_ts(time.time())
+
+            now = time.time()
+            # Step CPU Overhead
+            C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST = (
+                0.01  # (tmp): use 10ms currently
+            )
+            StateManager.step_global_clock(
+                process_batch_result_end
+                - process_batch_result_start
+                + C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST
+            )
+            StateManager.set_last_real_time_ts(now)
+
             return ret
 
         def override_profile(req, *args, **kwargs):
