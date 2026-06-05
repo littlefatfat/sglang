@@ -30,6 +30,8 @@ def resolve_scheduler_config(
         page_size=getattr(server_args, "page_size", None),
         swa_full_tokens_ratio=getattr(server_args, "swa_full_tokens_ratio", None),
         kv_bytes_per_token_per_gpu=getattr(server_args, "kv_bytes_per_token_per_gpu", None),
+        hicache_ratio=getattr(server_args, "hicache_ratio", None),
+        enable_hierarchical_cache=getattr(server_args, "enable_hierarchical_cache", None),
         backend_name="sglang",
         backend_version=__version__,
     )

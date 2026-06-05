@@ -310,6 +310,16 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
     if kb_per_token is None:
         kb_per_token = _KB_PER_TOKEN_BY_MODEL["glm-5"]
 
+    # L2 host KV pool capacity (GB): hicache_ratio * max_total_tokens worth of KV.
+    _hc = getattr(sched_config, "enable_hierarchical_cache", None) if sched_config else None
+    _hr = getattr(sched_config, "hicache_ratio", None) if sched_config else None
+    _mtt = getattr(sched_config, "max_total_tokens", None) if sched_config else None
+    l2_hicache_pool_capacity_gb = (
+        _tokens_to_gb(_hr * _mtt, kb_per_token)
+        if _hc and _hr is not None and _mtt is not None
+        else None
+    )
+
     kv_cache_tier_metrics = calc_kv_cache_tier_metrics(
         total_input=total_input,
         total_reused_tokens=total_reused_tokens,
@@ -342,6 +352,7 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
             0 if total_input == 0 else total_device_hit_tokens / total_input
         ),
         **kv_cache_tier_metrics,
+        "l2_hicache_pool_capacity_GB": l2_hicache_pool_capacity_gb,
         "mean_ttft_ms": np.mean(ttfts or 0) * 1000,
         "median_ttft_ms": np.median(ttfts or 0) * 1000,
         # "std_ttft_ms": np.std(ttfts or 0) * 1000,
