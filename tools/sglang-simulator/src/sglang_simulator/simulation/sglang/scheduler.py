@@ -440,6 +440,13 @@ class C_SchedulerHook(BaseHook):
                     StateManager.step_global_clock(
                         hicache_l2_load_dur + current_inference_dur
                     )
+                # Step CPU overhead BEFORE recording latencies,
+                # so current iter's CPU time is reflected in current iter's TTFT.
+                now = time.time()
+                cpu_overhead = now - StateManager.get_last_real_time_ts()
+                StateManager.step_global_clock(cpu_overhead)
+                StateManager.set_last_real_time_ts(now)
+
                 request_response_time = StateManager.get_global_clock()
                 # Request statistics
                 for req in batch.reqs:
@@ -463,21 +470,13 @@ class C_SchedulerHook(BaseHook):
                         "preprocess_latency": C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST,
                         "postprocess_latency": process_batch_result_end
                         - process_batch_result_start,
+                        "cpu_overhead": cpu_overhead,
                     }
                 )
-
-            now = time.time()
-            # Step CPU Overhead
-            # C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST = (
-            #     0.01  # (tmp): use 10ms currently
-            # )
-            # StateManager.step_global_clock(
-            #     process_batch_result_end
-            #     - process_batch_result_start
-            #     + C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST
-            # )
-            StateManager.step_global_clock(now - StateManager.get_last_real_time_ts())
-            StateManager.set_last_real_time_ts(now)
+            else:
+                now = time.time()
+                StateManager.step_global_clock(now - StateManager.get_last_real_time_ts())
+                StateManager.set_last_real_time_ts(now)
 
             return ret
 
