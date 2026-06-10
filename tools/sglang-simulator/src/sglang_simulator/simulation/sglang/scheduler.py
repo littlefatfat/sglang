@@ -19,6 +19,7 @@ from sglang_simulator.simulation.types import (
     SimulationMode,
 )
 from sglang_simulator.simulation.utils import (
+    calc_iteration_metrics,
     calc_metrics,
 )
 from sglang_simulator.time_predictor import InferTimePredictor
@@ -425,21 +426,39 @@ class C_SchedulerHook(BaseHook):
                     return ret
 
                 hicache_l2_load_dur = StateManager.pop_hicache_l2_load_dur()
+                hicache_l2_load_stats = StateManager.pop_hicache_l2_load_stats()
                 hicache_l2_backup_dur = StateManager.pop_hicache_l2_backup_dur()
                 current_inference_dur = StateManager.get_current_inference_dur()
+                # Experimental DSv4 approximation: real H2D load is pipelined
+                # layer-by-layer with forward. Keep reported l2_load_latency raw,
+                # but only expose roughly one layer of load on the sim clock.
+                HICACHE_LAYERWISE_LOAD_DIVISOR = float(
+                    os.environ.get("HICACHE_LAYERWISE_LOAD_DIVISOR", "1.0")
+                )
+                effective_hicache_l2_load_dur = (
+                    hicache_l2_load_dur / HICACHE_LAYERWISE_LOAD_DIVISOR
+                )
 
                 if C_SchedulerHook.OVERLAP_SCHEDULE:
                     StateManager.step_global_clock(
                         max(
-                            hicache_l2_load_dur - StateManager.get_last_inference_dur(),
+                            effective_hicache_l2_load_dur
+                            - StateManager.get_last_inference_dur(),
                             0,
                         )
                     )
                     StateManager.step_global_clock(current_inference_dur)
                 else:
                     StateManager.step_global_clock(
-                        hicache_l2_load_dur + current_inference_dur
+                        effective_hicache_l2_load_dur + current_inference_dur
                     )
+                # Step CPU overhead BEFORE recording latencies,
+                # so current iter's CPU time is reflected in current iter's TTFT.
+                now = time.time()
+                cpu_overhead = now - StateManager.get_last_real_time_ts()
+                StateManager.step_global_clock(cpu_overhead)
+                StateManager.set_last_real_time_ts(now)
+
                 request_response_time = StateManager.get_global_clock()
                 # Request statistics
                 for req in batch.reqs:
@@ -459,25 +478,18 @@ class C_SchedulerHook(BaseHook):
                         "requests": C_SchedulerHook.SIMULATION_BATCH.request_info(),
                         "forward_latency": current_inference_dur,
                         "l2_load_latency": hicache_l2_load_dur,
+                        **hicache_l2_load_stats,
                         "l2_backup_latency": hicache_l2_backup_dur,
                         "preprocess_latency": C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST,
                         "postprocess_latency": process_batch_result_end
                         - process_batch_result_start,
+                        "cpu_overhead": cpu_overhead,
                     }
                 )
-
-            now = time.time()
-            # Step CPU Overhead
-            # C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST = (
-            #     0.01  # (tmp): use 10ms currently
-            # )
-            # StateManager.step_global_clock(
-            #     process_batch_result_end
-            #     - process_batch_result_start
-            #     + C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST
-            # )
-            StateManager.step_global_clock(now - StateManager.get_last_real_time_ts())
-            StateManager.set_last_real_time_ts(now)
+            else:
+                now = time.time()
+                StateManager.step_global_clock(now - StateManager.get_last_real_time_ts())
+                StateManager.set_last_real_time_ts(now)
 
             return ret
 
@@ -513,6 +525,9 @@ class C_SchedulerHook(BaseHook):
                 )
                 metrics["predictor_time_cost"] = (
                     C_SchedulerHook.TOTAL_PREDICTOR_TIME_COST
+                )
+                metrics.update(
+                    calc_iteration_metrics(C_SchedulerHook.ITERATION_STATS, metrics)
                 )
 
                 try:

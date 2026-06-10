@@ -91,20 +91,29 @@ def get_perf_model(
         gemm_quant_mode=MAP_DTYPE_TO_GEMMQuantMode.get(
             sched_config.data_type, GEMMQuantMode.bfloat16
         ),
-        moe_quant_mode=MAP_DTYPE_TO_MoEQuantMode.get(
-            sched_config.data_type, MoEQuantMode.bfloat16
+        moe_quant_mode=(
+            getattr(MoEQuantMode, sched_config.moe_quant_mode_override)
+            if sched_config.moe_quant_mode_override
+            else MAP_DTYPE_TO_MoEQuantMode.get(sched_config.data_type, MoEQuantMode.bfloat16)
         ),
         kvcache_quant_mode=MAP_DTYPE_TO_KVCacheQuantMode.get(
             sched_config.kv_cache_data_type, KVCacheQuantMode.bfloat16
         ),
-        fmha_quant_mode=MAP_DTYPE_TO_FMHAQuantMode.get(
-            sched_config.kv_cache_data_type, FMHAQuantMode.bfloat16
+        fmha_quant_mode=(
+            getattr(FMHAQuantMode, sched_config.fmha_quant_mode_override)
+            if sched_config.fmha_quant_mode_override
+            else MAP_DTYPE_TO_FMHAQuantMode.get(sched_config.kv_cache_data_type, FMHAQuantMode.bfloat16)
         ),
-        comm_quant_mode=MAP_DTYPE_TO_CommQunatMode.get(
-            sched_config.data_type, CommQuantMode.half
+        comm_quant_mode=(
+            getattr(CommQuantMode, sched_config.comm_quant_mode_override)
+            if sched_config.comm_quant_mode_override
+            else MAP_DTYPE_TO_CommQunatMode.get(sched_config.data_type, CommQuantMode.half)
         ),
         workload_distribution=workload_distribution,
     )
+
+    # print(f"Model config for AIConfigurator: {model_config}") # mry debug
+    logger.info(f"Model config for AIConfigurator: {model_config}")
 
     return models.get_model(
         model_path=model.model_path,
@@ -148,6 +157,7 @@ class AIConfiguratorTimePredictor(InferTimePredictor):
             raise ValueError("Failed to initialize the database.")
 
         database.set_default_database_mode(database_mode)
+        logger.info(f"AIC Database mode: {database_mode}")
 
         # --- Replace the original function to support more flexible request input. --- #
 

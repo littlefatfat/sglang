@@ -64,6 +64,12 @@ class C_MHATokenToKVPoolHostHook(BaseHook):
                 )
 
             size_bytes_arr = seg_len * float(cls.KV_CACHE_BYTES_PER_LAYER)
+            StateManager.inc_hicache_l2_load_stats(
+                call_count=1,
+                segment_count=len(size_bytes_arr),
+                units=int(np.sum(seg_len)),
+                bytes_=float(np.sum(size_bytes_arr)),
+            )
             bandwidth_arr = est_bandwidth_batch(size_bytes_arr, cat="H2D")
             total_time_cost = float(np.sum(size_bytes_arr / bandwidth_arr))
             # total_time_cost += 3.3e-6 * len(size_bytes_arr)  # CPU Overhead
@@ -237,7 +243,7 @@ class C_DeepSeekV4PagedHostPoolHook(BaseHook):
             bandwidth_arr = est_bandwidth_batch(size_bytes_arr, cat="D2H")
             total_time_cost = float(np.sum(size_bytes_arr / bandwidth_arr))
             # total_time_cost += 3.3e-6 * len(size_bytes_arr)  # CPU Overhead
-            StateManager.inc_hicache_l2_load_dur(total_time_cost)
+            StateManager.inc_hicache_l2_backup_dur(total_time_cost)
             
 
         def load_to_device_per_layer(
@@ -258,6 +264,12 @@ class C_DeepSeekV4PagedHostPoolHook(BaseHook):
             seg_len = (ends - starts).astype(np.float64)
 
             size_bytes_arr = seg_len * self.get_size_per_token()
+            StateManager.inc_hicache_l2_load_stats(
+                call_count=1,
+                segment_count=len(size_bytes_arr),
+                units=int(np.sum(seg_len)),
+                bytes_=float(np.sum(size_bytes_arr)),
+            )
             bandwidth_arr = est_bandwidth_batch(size_bytes_arr, cat="H2D")
             total_time_cost = float(np.sum(size_bytes_arr / bandwidth_arr))
             # print(f"[Paged load_to_device_per_layer] {self.pool_name=}, {seg_len=}, {self.get_size_per_token()=}, {total_time_cost=}")
@@ -355,7 +367,7 @@ class C_DeepSeekV4StateHostPoolHook(BaseHook):
             bandwidth_arr = est_bandwidth_batch(size_bytes_arr, cat="D2H")
             total_time_cost = float(np.sum(size_bytes_arr / bandwidth_arr))
             # total_time_cost += 3.3e-6 * len(size_bytes_arr)  # CPU Overhead
-            StateManager.inc_hicache_l2_load_dur(total_time_cost)
+            StateManager.inc_hicache_l2_backup_dur(total_time_cost)
             
 
         def load_to_device_per_layer(
@@ -376,6 +388,12 @@ class C_DeepSeekV4StateHostPoolHook(BaseHook):
             seg_len = (ends - starts).astype(np.float64)
 
             size_bytes_arr = seg_len * self.get_size_per_token()
+            StateManager.inc_hicache_l2_load_stats(
+                call_count=1,
+                segment_count=len(size_bytes_arr),
+                units=int(np.sum(seg_len)),
+                bytes_=float(np.sum(size_bytes_arr)),
+            )
             bandwidth_arr = est_bandwidth_batch(size_bytes_arr, cat="H2D")
             total_time_cost = float(np.sum(size_bytes_arr / bandwidth_arr))
             # total_time_cost += 3.3e-6 * len(size_bytes_arr)  # CPU Overhead

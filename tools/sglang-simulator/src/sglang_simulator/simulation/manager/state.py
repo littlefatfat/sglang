@@ -5,6 +5,10 @@ class StateManager:
     _current_inference_dur: float = 0
     _hicache_l2_load_dur: float = 0
     _hicache_l2_backup_dur: float = 0
+    _hicache_l2_load_call_count: int = 0
+    _hicache_l2_load_segment_count: int = 0
+    _hicache_l2_load_units: int = 0
+    _hicache_l2_load_bytes: float = 0
     _last_real_time_ts: float = 0
     _last_flush_time_ts: float = 0
 
@@ -16,6 +20,10 @@ class StateManager:
         cls._current_inference_dur = 0
         cls._hicache_l2_backup_dur = 0
         cls._hicache_l2_load_dur = 0
+        cls._hicache_l2_load_call_count = 0
+        cls._hicache_l2_load_segment_count = 0
+        cls._hicache_l2_load_units = 0
+        cls._hicache_l2_load_bytes = 0
         cls._last_real_time_ts = 0
 
     @classmethod
@@ -31,6 +39,15 @@ class StateManager:
         cls._hicache_l2_load_dur += dur
 
     @classmethod
+    def inc_hicache_l2_load_stats(
+        cls, call_count: int = 0, segment_count: int = 0, units: int = 0, bytes_: float = 0
+    ) -> None:
+        cls._hicache_l2_load_call_count += call_count
+        cls._hicache_l2_load_segment_count += segment_count
+        cls._hicache_l2_load_units += units
+        cls._hicache_l2_load_bytes += bytes_
+
+    @classmethod
     def inc_hicache_l2_backup_dur(cls, dur: float) -> None:
         cls._hicache_l2_backup_dur += dur
 
@@ -39,6 +56,20 @@ class StateManager:
         dur = cls._hicache_l2_load_dur
         cls._hicache_l2_load_dur = 0
         return dur
+
+    @classmethod
+    def pop_hicache_l2_load_stats(cls) -> dict:
+        stats = {
+            "h2d_load_call_count": cls._hicache_l2_load_call_count,
+            "h2d_load_segment_count": cls._hicache_l2_load_segment_count,
+            "h2d_load_units": cls._hicache_l2_load_units,
+            "h2d_load_bytes": cls._hicache_l2_load_bytes,
+        }
+        cls._hicache_l2_load_call_count = 0
+        cls._hicache_l2_load_segment_count = 0
+        cls._hicache_l2_load_units = 0
+        cls._hicache_l2_load_bytes = 0
+        return stats
 
     @classmethod
     def pop_hicache_l2_backup_dur(cls) -> float:
