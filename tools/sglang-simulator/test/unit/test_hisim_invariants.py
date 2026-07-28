@@ -1,0 +1,193 @@
+import sys
+from types import SimpleNamespace
+
+import pytest
+import torch
+
+from sglang_simulator.simulation.manager.state import StateManager
+from sglang_simulator.simulation.sglang.hicache_storage import MockHiCacheStorage
+from sglang_simulator.simulation.sglang.mem_cache_allocator import (
+    alloc_decode_cpu,
+    alloc_extend_cpu,
+)
+from sglang_simulator.simulation.types import RequestStats
+from sglang_simulator.simulation.utils import (
+    calc_iteration_metrics,
+    calc_kv_cache_tier_metrics,
+    calc_metrics,
+)
+
+
+def test_alloc_extend_cpu_preserves_page_layout_across_sequences():
+    page_size = 4
+    prefix_lens = torch.tensor([3, 4, 0], dtype=torch.int64)
+    seq_lens = torch.tensor([6, 5, 3], dtype=torch.int64)
+    last_loc = torch.tensor([10, 19, -1], dtype=torch.int64)
+    free_pages = torch.tensor([7, 8, 9], dtype=torch.int64)
+    out_indices = torch.empty(7, dtype=torch.int64)
+
+    alloc_extend_cpu(
+        prefix_lens,
+        seq_lens,
+        last_loc,
+        free_pages,
+        out_indices,
+        bs_upper=3,
+        page_size=page_size,
+    )
+
+    # Sequence 0 reuses one slot in its current page, then uses page 7.
+    # Sequence 1 uses page 8. Sequence 2 uses page 9.
+    assert out_indices.tolist() == [11, 28, 29, 32, 36, 37, 38]
+
+
+def test_alloc_decode_cpu_only_consumes_pages_at_page_boundaries():
+    page_size = 4
+    seq_lens = torch.tensor([4, 5, 8, 9], dtype=torch.int64)
+    last_loc = torch.tensor([2, 15, 30, 35], dtype=torch.int64)
+    free_pages = torch.tensor([7, 8], dtype=torch.int64)
+    out_indices = torch.empty(4, dtype=torch.int64)
+
+    alloc_decode_cpu(
+        seq_lens,
+        last_loc,
+        free_pages,
+        out_indices,
+        bs_upper=4,
+        page_size=page_size,
+    )
+
+    assert out_indices.tolist() == [3, 28, 31, 32]
+
+
+def test_cache_tier_metrics_keep_token_and_bandwidth_accounting_exact():
+    metrics = calc_kv_cache_tier_metrics(
+        total_input=1000,
+        total_reused_tokens=400,
+        total_host_hit_tokens=200,
+        total_storage_hit_tokens=50,
+        total_dur_s=10,
+        kb_per_token=1024,
+    )
+
+    assert metrics["total_new_input"] == 600
+    assert metrics["total_new_input_GB"] == pytest.approx(600 / 1024)
+    assert metrics["new_input_write_throughput_tokens_per_s"] == 60
+    assert metrics["new_input_write_throughput_GB_per_s"] == pytest.approx(
+        60 / 1024
+    )
+    assert metrics["l3_to_l2_tokens"] == 50
+    assert metrics["l2_to_l1_tokens"] == 250
+    assert metrics["l3_to_l2_throughput_tokens_per_s"] == 5
+    assert metrics["l2_to_l1_throughput_tokens_per_s"] == 25
+
+
+def test_request_metrics_preserve_prefix_and_tier_hit_ratios(monkeypatch):
+    class FakeConfigManager:
+        @staticmethod
+        def get_model_info():
+            return None
+
+        @staticmethod
+        def get_scheduler_config():
+            return None
+
+        @staticmethod
+        def get_platform_config():
+            return None
+
+    monkeypatch.setitem(
+        sys.modules,
+        "sglang_simulator.simulation.manager",
+        SimpleNamespace(ConfigManager=FakeConfigManager),
+    )
+
+    requests = [
+        RequestStats(
+            rid="r1",
+            input_length=100,
+            output_length=2,
+            final_device_hit_len=60,
+            final_host_hit_len=20,
+            final_storage_hit_len=5,
+            queue_start=0.00,
+            queue_end=0.01,
+            last_event_time=0.20,
+            gen_token_latencies=[0.10, 0.02],
+        ),
+        RequestStats(
+            rid="r2",
+            input_length=100,
+            output_length=1,
+            final_device_hit_len=40,
+            final_host_hit_len=10,
+            final_storage_hit_len=0,
+            queue_start=0.05,
+            queue_end=0.07,
+            last_event_time=0.50,
+            gen_token_latencies=[0.20],
+        ),
+    ]
+
+    metrics = calc_metrics(requests)
+
+    assert metrics["completed"] == 2
+    assert metrics["total_input"] == 200
+    assert metrics["prefix_cache_reused_ratio"] == pytest.approx(0.50)
+    assert metrics["kv_cache_device_hit_ratio"] == pytest.approx(0.35)
+    assert metrics["kv_cache_host_hit_ratio"] == pytest.approx(0.125)
+    assert metrics["kv_cache_storage_hit_ratio"] == pytest.approx(0.025)
+    assert metrics["mean_ttft_ms"] == pytest.approx(150)
+    assert metrics["mean_queue_ms"] == pytest.approx(15)
+
+
+def test_iteration_metrics_aggregate_latency_and_h2d_counters():
+    metrics = calc_iteration_metrics(
+        [
+            {
+                "forward_latency": 0.10,
+                "l2_load_latency": 0.02,
+                "cpu_overhead": 0.01,
+                "h2d_load_call_count": 1,
+                "h2d_load_segment_count": 2,
+                "h2d_load_units": 3,
+                "h2d_load_bytes": 4096,
+            },
+            {
+                "forward_latency": 0.20,
+                "l2_load_latency": 0,
+                "cpu_overhead": 0.02,
+                "h2d_load_call_count": 4,
+                "h2d_load_segment_count": 5,
+                "h2d_load_units": 6,
+                "h2d_load_bytes": 8192,
+            },
+        ]
+    )
+
+    assert metrics["iterations"] == 2
+    assert metrics["total_forward_s"] == pytest.approx(0.30)
+    assert metrics["total_l2_load_s"] == pytest.approx(0.02)
+    assert metrics["total_cpu_s"] == pytest.approx(0.03)
+    assert metrics["total_step_s"] == pytest.approx(0.35)
+    assert metrics["avg_iter_latency_ms"] == pytest.approx(175)
+    assert metrics["total_h2d_load_call_count"] == 5
+    assert metrics["total_h2d_load_segment_count"] == 7
+    assert metrics["total_h2d_load_units"] == 9
+    assert metrics["total_h2d_load_bytes"] == 12288
+    assert metrics["iters_with_l2_load"] == 1
+
+
+def test_state_manager_pop_and_reset_do_not_leak_between_runs():
+    StateManager.reset()
+    StateManager.step_global_clock(1.25)
+    StateManager.set_current_inference_dur(0.10)
+    StateManager.set_current_inference_dur(0.20)
+    StateManager.inc_hicache_l2_load_dur(0.03)
+    StateManager.inc_hicache_l2_load_stats(1, 2, 3, 4096)
+
+    assert StateManager.get_global_clock() == pytest.approx(1.25)
+    assert StateManager.get_last_inference_dur() == pytest.approx(0.10)
+    assert StateManager.get_current_inference_dur() == pytest.approx(0.20)
+    assert StateManager.pop_hicache_l2_load_dur() == pytest.approx(0.03)
+    assert StateManager.pop_hicache_l2_load_dur() == 0
