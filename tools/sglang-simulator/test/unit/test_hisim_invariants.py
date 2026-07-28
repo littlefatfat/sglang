@@ -1,3 +1,4 @@
+import json
 import sys
 from types import SimpleNamespace
 
@@ -5,12 +6,12 @@ import pytest
 import torch
 
 from sglang_simulator.simulation.manager.state import StateManager
-from sglang_simulator.simulation.sglang.hicache_storage import MockHiCacheStorage
 from sglang_simulator.simulation.sglang.mem_cache_allocator import (
     alloc_decode_cpu,
     alloc_extend_cpu,
 )
 from sglang_simulator.simulation.types import RequestStats
+from sglang_simulator.simulation.manager.config import ConfigManager
 from sglang_simulator.simulation.utils import (
     calc_iteration_metrics,
     calc_kv_cache_tier_metrics,
@@ -73,9 +74,7 @@ def test_cache_tier_metrics_keep_token_and_bandwidth_accounting_exact():
     assert metrics["total_new_input"] == 600
     assert metrics["total_new_input_GB"] == pytest.approx(600 / 1024)
     assert metrics["new_input_write_throughput_tokens_per_s"] == 60
-    assert metrics["new_input_write_throughput_GB_per_s"] == pytest.approx(
-        60 / 1024
-    )
+    assert metrics["new_input_write_throughput_GB_per_s"] == pytest.approx(60 / 1024)
     assert metrics["l3_to_l2_tokens"] == 50
     assert metrics["l2_to_l1_tokens"] == 250
     assert metrics["l3_to_l2_throughput_tokens_per_s"] == 5
@@ -191,3 +190,24 @@ def test_state_manager_pop_and_reset_do_not_leak_between_runs():
     assert StateManager.get_current_inference_dur() == pytest.approx(0.20)
     assert StateManager.pop_hicache_l2_load_dur() == pytest.approx(0.03)
     assert StateManager.pop_hicache_l2_load_dur() == 0
+
+
+def test_ignore_cpu_overhead_defaults_to_0714_semantics(monkeypatch, tmp_path):
+    config_path = tmp_path / "hisim.json"
+    config_path.write_text(json.dumps({"scheduler": {}}))
+    monkeypatch.setenv("SGLANG_SIMULATOR_CONFIG_PATH", str(config_path))
+    ConfigManager.reset_config_cache()
+
+    assert ConfigManager.ignore_cpu_overhead() is False
+
+
+def test_ignore_cpu_overhead_can_be_enabled_and_cache_is_reset(monkeypatch, tmp_path):
+    config_path = tmp_path / "hisim.json"
+    config_path.write_text(json.dumps({"scheduler": {"ignore_cpu_overhead": True}}))
+    monkeypatch.setenv("SGLANG_SIMULATOR_CONFIG_PATH", str(config_path))
+    ConfigManager.reset_config_cache()
+    assert ConfigManager.ignore_cpu_overhead() is True
+
+    config_path.write_text(json.dumps({"scheduler": {"ignore_cpu_overhead": False}}))
+    ConfigManager.reset_config_cache()
+    assert ConfigManager.ignore_cpu_overhead() is False

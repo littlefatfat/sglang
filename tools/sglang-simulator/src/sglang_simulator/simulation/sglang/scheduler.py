@@ -72,9 +72,9 @@ class ReqDispatcher:
         # If the simulation mode is `OFFLINE`, only control requests, such as `flush_cache`
         # and `server_info`, are released immediately.
         self.immediate_release_requests = []
-        self.future_queue: list[tuple[float, int, Any]] = (
-            []
-        )  # tuple(created time, salt, request)
+        self.future_queue: list[
+            tuple[float, int, Any]
+        ] = []  # tuple(created time, salt, request)
         self.offline_recv_all_requests = False
 
     def has_next(self) -> bool:
@@ -468,8 +468,10 @@ class C_SchedulerHook(BaseHook):
                 # Step CPU overhead BEFORE recording latencies,
                 # so current iter's CPU time is reflected in current iter's TTFT.
                 now = time.time()
-                cpu_overhead = now - StateManager.get_last_real_time_ts()
-                StateManager.step_global_clock(cpu_overhead)
+                cpu_overhead = 0.0
+                if not ConfigManager.ignore_cpu_overhead():
+                    cpu_overhead = now - StateManager.get_last_real_time_ts()
+                    StateManager.step_global_clock(cpu_overhead)
                 StateManager.set_last_real_time_ts(now)
 
                 request_response_time = StateManager.get_global_clock()
@@ -501,7 +503,9 @@ class C_SchedulerHook(BaseHook):
                 )
             else:
                 now = time.time()
-                StateManager.step_global_clock(now - StateManager.get_last_real_time_ts())
+                StateManager.step_global_clock(
+                    now - StateManager.get_last_real_time_ts()
+                )
                 StateManager.set_last_real_time_ts(now)
 
             return ret

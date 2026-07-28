@@ -199,7 +199,7 @@ class C_DeepSeekV4PagedHostPoolHook(BaseHook):
                     "Failed to disable pip memory while initializing the DeepSeekV4PagedHostPool."
                 )
             return original_init(self, *args, **kwargs)
-        
+
         def est_bandwidth_batch(size_bytes_arr: np.ndarray, cat: str):
             if cls.MEMORY_READ_BANDWIDTH_BYTES is None:
                 cls.MEMORY_READ_BANDWIDTH_BYTES = (
@@ -219,13 +219,12 @@ class C_DeepSeekV4PagedHostPoolHook(BaseHook):
                 t0 = 4e-6
                 bw = cls.MEMORY_WRITE_BANDWIDTH_BYTES * eff
             return x * bw / (t0 * bw + x)
-        
+
         def backup_from_device_all_layer(
             self, device_pool, host_indices, device_indices, io_backend
         ):
             if host_indices is None or device_indices is None:
                 return
-            self._check_io_backend(io_backend)
             host_indices = self._to_page_indices(host_indices)
             device_indices = self._to_page_indices(device_indices)
 
@@ -246,7 +245,6 @@ class C_DeepSeekV4PagedHostPoolHook(BaseHook):
             total_time_cost = float(np.sum(size_bytes_arr / bandwidth_arr))
             # total_time_cost += 3.3e-6 * len(size_bytes_arr)  # CPU Overhead
             StateManager.inc_hicache_l2_backup_dur(total_time_cost)
-            
 
         def load_to_device_per_layer(
             self, device_pool, host_indices, device_indices, layer_id, io_backend
@@ -279,17 +277,19 @@ class C_DeepSeekV4PagedHostPoolHook(BaseHook):
             StateManager.inc_hicache_l2_load_dur(total_time_cost)
 
         def get_size_per_token(self):
-            if self.pool_name in ['swa']:
+            if self.pool_name in ["swa"]:
                 return self.size_per_token * 130
-            elif self.pool_name in ['deepseek_v4_c4']:
+            elif self.pool_name in ["deepseek_v4_c4"]:
                 return self.size_per_token * 65
-            elif self.pool_name in ['deepseek_v4_c4_indexer']:
+            elif self.pool_name in ["deepseek_v4_c4_indexer"]:
                 return self.size_per_token * 132
-            elif self.pool_name in ['deepseek_v4_c128']:
+            elif self.pool_name in ["deepseek_v4_c128"]:
                 return self.size_per_token * 3
             else:
                 # return self.size_per_token
-                raise ValueError(f"[DeepSeekV4PagedHostPool] unsupport pool name: {self.pool_name}") 
+                raise ValueError(
+                    f"[DeepSeekV4PagedHostPool] unsupport pool name: {self.pool_name}"
+                )
 
         target.__init__ = wrapped_init
         target.backup_from_device_all_layer = backup_from_device_all_layer
@@ -323,7 +323,7 @@ class C_DeepSeekV4StateHostPoolHook(BaseHook):
                     "Failed to disable pip memory while initializing the DeepSeekV4StateHostPool."
                 )
             return original_init(self, *args, **kwargs)
-    
+
         def est_bandwidth_batch(size_bytes_arr: np.ndarray, cat: str):
             if cls.MEMORY_READ_BANDWIDTH_BYTES is None:
                 cls.MEMORY_READ_BANDWIDTH_BYTES = (
@@ -343,13 +343,12 @@ class C_DeepSeekV4StateHostPoolHook(BaseHook):
                 t0 = 4e-6
                 bw = cls.MEMORY_WRITE_BANDWIDTH_BYTES * eff
             return x * bw / (t0 * bw + x)
-        
+
         def backup_from_device_all_layer(
             self, device_pool, host_indices, device_indices, io_backend
         ):
             if host_indices is None or device_indices is None:
                 return
-            self._check_io_backend(io_backend)
             host_indices = self._to_page_indices(host_indices)
             device_indices = self._to_page_indices(device_indices)
 
@@ -370,7 +369,6 @@ class C_DeepSeekV4StateHostPoolHook(BaseHook):
             total_time_cost = float(np.sum(size_bytes_arr / bandwidth_arr))
             # total_time_cost += 3.3e-6 * len(size_bytes_arr)  # CPU Overhead
             StateManager.inc_hicache_l2_backup_dur(total_time_cost)
-            
 
         def load_to_device_per_layer(
             self, device_pool, host_indices, device_indices, layer_id, io_backend
@@ -403,14 +401,19 @@ class C_DeepSeekV4StateHostPoolHook(BaseHook):
             StateManager.inc_hicache_l2_load_dur(total_time_cost)
 
         def get_size_per_token(self):
-            if self.pool_name in ['deepseek_v4_c4_state', 'deepseek_v4_c128_state']:
+            if self.pool_name in ["deepseek_v4_c4_state", "deepseek_v4_c128_state"]:
                 return self.size_per_token * 256
-            elif self.pool_name in ['deepseek_v4_indexer_state', 'deepseek_v4_c4_indexer_state']:
+            elif self.pool_name in [
+                "deepseek_v4_indexer_state",
+                "deepseek_v4_c4_indexer_state",
+            ]:
                 return self.size_per_token * 128
             else:
                 # return self.size_per_token
-                raise ValueError(f"[DeepSeekV4StateHostPool] unsupport pool name: {self.pool_name}")
-        
+                raise ValueError(
+                    f"[DeepSeekV4StateHostPool] unsupport pool name: {self.pool_name}"
+                )
+
         target.__init__ = wrapped_init
         target.backup_from_device_all_layer = backup_from_device_all_layer
         target.load_to_device_per_layer = load_to_device_per_layer

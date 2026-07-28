@@ -24,6 +24,7 @@ class ConfigManager:
     _platform_config: Optional[PlatformConfig] = None
     _scheduler_config: Optional[SchedulerConfig] = None
     _raw_config: Optional[dict] = None
+    _ignore_cpu_overhead: Optional[bool] = None
 
     @classmethod
     def _get_raw_config(cls) -> dict:
@@ -38,6 +39,7 @@ class ConfigManager:
         cls._model_info = None
         cls._platform_config = None
         cls._scheduler_config = None
+        cls._ignore_cpu_overhead = None
 
     @classmethod
     def set_model_info(cls, model: ModelInfo):
@@ -191,6 +193,7 @@ class ConfigManager:
             )
         elif predictor_config.get("name") == "ml":
             from sglang_simulator.time_predictor.ml import MLTimePredictor
+
             return MLTimePredictor(
                 model,
                 hw=hw,
@@ -200,17 +203,21 @@ class ConfigManager:
             )
         elif predictor_config.get("name") == "replay":
             from sglang_simulator.time_predictor.replay import ReplayTimePredictor
+
             return ReplayTimePredictor(
                 model,
                 hw=hw,
                 config=sched_config,
                 database_path=predictor_config.get("database_path"),
-                miss_fallback_seconds=predictor_config.get("miss_fallback_seconds", 0.0),
+                miss_fallback_seconds=predictor_config.get(
+                    "miss_fallback_seconds", 0.0
+                ),
                 miss_strategy=predictor_config.get("miss_strategy", "zero"),
                 miss_knn_k=predictor_config.get("miss_knn_k", 3),
             )
         elif predictor_config.get("name") == "gbr":
             from sglang_simulator.time_predictor.gbr import GBRTimePredictor
+
             return GBRTimePredictor(
                 model,
                 hw=hw,
@@ -220,5 +227,17 @@ class ConfigManager:
                 decode_latency=predictor_config.get("decode_latency", 0.02),
             )
         else:
-            raise ValueError(f"Unknown predictor name: {predictor_config.get('name')}. "
-                             f"Supported: aiconfigurator, ml, replay, gbr")
+            raise ValueError(
+                f"Unknown predictor name: {predictor_config.get('name')}. "
+                f"Supported: aiconfigurator, ml, replay, gbr"
+            )
+
+    @classmethod
+    def ignore_cpu_overhead(cls) -> bool:
+        if cls._ignore_cpu_overhead is None:
+            cls._ignore_cpu_overhead = (
+                cls._get_raw_config()
+                .get("scheduler", {})
+                .get("ignore_cpu_overhead", False)
+            )
+        return cls._ignore_cpu_overhead

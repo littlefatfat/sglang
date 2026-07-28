@@ -182,3 +182,78 @@ preprocess+postprocess 约 39–44 ms；v0.5.16 将本机 wall-clock
 OFFLINE 准确度回归不能继续依赖本机实测 CPU overhead。
 后续应使用固定/回放 CPU overhead，或使用包含 pre/post 的 replay table 并禁用重复计时。
 ```
+
+## DSv4Pro v0.5.16 实跑
+
+日期：2026-07-28。Case：
+
+```text
+hisim-num-node-1-dpskv4pro-blksz-256-bucket-0-32-cnt-2304-time-60min-pod-7s07-008
+2304 requests / 60 minutes / DeepSeek-V4-Pro / B300 / TP4 / L2 / HGB monotonic
+real mean TTFT: 411.171455 ms
+```
+
+### 0714 语义与 v0.5.16 适配
+
+| 指标 | 0714 历史结果 | v0.5.16 | 差值/相对变化 |
+|---|---:|---:|---:|
+| Prefix reused ratio | 0.4110452 | 0.4183055 | +0.7260 pp |
+| L1 device hit ratio | 0.3640169 | 0.3749836 | +1.0967 pp |
+| L2 host hit ratio | 0.0470283 | 0.0433219 | -0.3706 pp |
+| Mean TTFT/E2E | 433.739 ms | 433.819 ms | +0.0185% |
+| Median TTFT/E2E | 221.286 ms | 226.662 ms | +2.4291% |
+| P90 TTFT/E2E | 1066.372 ms | 975.454 ms | -8.5260% |
+
+相对真实 mean TTFT：
+
+```text
+0714 historical: +5.4886%
+v0.5.16 with 0714 CPU-overhead semantics: +5.5081%
+```
+
+Batch：
+
+```text
+0714 / v0.5.16 iterations: 2585 / 2571
+0714 / v0.5.16 mean batch size: 1.0766 / 1.0821
+first mismatch iteration: 5 (zero-based)
+exact sequence match: false
+```
+
+因此，这一组的 mean TTFT 保持稳定，总前缀命中差小于 1 个百分点；但
+device/host 分层、batch composition 和 p90 没有保持不变，尚未通过严格的
+仿真语义回归门槛。
+
+### CPU overhead 消融
+
+同一 v0.5.16 代码和输入，只切换：
+
+```json
+{"scheduler": {"ignore_cpu_overhead": true}}
+```
+
+| 指标 | 0714 语义（false） | 忽略 overhead（true） | 相对变化 |
+|---|---:|---:|---:|
+| Prefix reused ratio | 0.4183055 | 0.4183055 | 0.0000% |
+| L1 device hit ratio | 0.3749836 | 0.3742860 | -0.0698 pp |
+| L2 host hit ratio | 0.0433219 | 0.0440195 | +0.0698 pp |
+| Mean TTFT/E2E | 433.819 ms | 373.905 ms | -13.8109% |
+| Median TTFT/E2E | 226.662 ms | 204.695 ms | -9.6913% |
+| P90 TTFT/E2E | 975.454 ms | 807.624 ms | -17.2053% |
+
+相对真实 mean TTFT：
+
+```text
+0714 semantics: +5.5081%
+ignore CPU overhead: -9.0623%
+```
+
+结论：
+
+```text
+refactor-simplify 删除 wall-clock CPU overhead 不是本 case 总前缀命中偏差的主因。
+它会显著改变 TTFT、batch 边界和少量 L1/L2 分层。
+默认必须保留 0714 语义；ignore_cpu_overhead 只作为显式 A/B 开关。
+旧版到 v0.5.16 的 +0.726 pp 总前缀漂移仍需用多 trace、尤其高命中和多节点 case 定位。
+单 case 不能证明 DSv4Pro 全量误差已经合格。
+```
