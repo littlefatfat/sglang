@@ -152,7 +152,8 @@ def alloc_decode_cpu(
 
 class C_PagedTokenToKVPoolAllocatorHook(BaseHook):
     HOOK_CLASS_NAME = "PagedTokenToKVPoolAllocator"
-    HOOK_MODULE_NAME = "sglang.srt.mem_cache.allocator"
+    HOOK_MODULE_NAME = r"^sglang\.srt\.mem_cache\.allocator(?:\.paged)?$"
+    REGEX = True
 
     @classmethod
     def hook(cls, target):
@@ -161,9 +162,16 @@ class C_PagedTokenToKVPoolAllocatorHook(BaseHook):
         def wrapped_init(self, *args, **kwargs):
             original_init(self, *args, **kwargs)
             if self.device == "cpu":
-                from sglang.srt.mem_cache import allocator
-                # triton kernels are not compatible with the CPU allocator, so we use python implementation instead.
-                allocator.alloc_extend_kernel = IndexableWrapper(alloc_extend_cpu)
-                allocator.alloc_decode_kernel = IndexableWrapper(alloc_decode_cpu)
+                try:
+                    # SGLang >= v0.5.16 split allocators into a package.
+                    from sglang.srt.mem_cache.allocator import paged as paged_allocator
+                except ImportError:
+                    # Compatibility with the pre-v0.5.16 single-module layout.
+                    from sglang.srt.mem_cache import allocator as paged_allocator
+
+                # GPU kernels are not compatible with the CPU simulator. Patch
+                # the module-local references used by PagedTokenToKVPoolAllocator.
+                paged_allocator.alloc_extend_kernel = IndexableWrapper(alloc_extend_cpu)
+                paged_allocator.alloc_decode_kernel = IndexableWrapper(alloc_decode_cpu)
 
         target.__init__ = wrapped_init
