@@ -12,6 +12,11 @@ from sglang_simulator.simulation.sglang import (
     sgl_kernel_hook,
 )
 
+# A spawned worker imports this module while unpickling its target. ModelConfig
+# can import GPU kernels while later arguments are still being unpickled, before
+# the target wrapper executes, so the loader stub must already be present here.
+sgl_kernel_hook.install_load_utils_stub()
+
 _HOOKS_INSTALLED = False
 
 
