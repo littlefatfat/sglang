@@ -15,6 +15,51 @@ simulation mode: OFFLINE
 python3 scripts/check_environment.py
 ```
 
+## v0.5.16 最终功能验收
+
+日期：2026-07-29。命令：
+
+```bash
+HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/final-acceptance \
+  bash scripts/acceptance.sh
+```
+
+结果：
+
+```text
+bundle tests: 10 passed
+simulator unit/hook/predictor tests: 11 passed
+in-process OFFLINE replay: 3/3
+in-process BLOCKING AIC random: 2/2
+in-process OFFLINE AIC ShareGPT: 2/2
+Qwen3-32B-FP8 H20 AIC: 3/3
+GLM5 P-node B300 TP8 AIC: 3/3
+DSv4Pro P-node GB300 TP4 ML: 3/3
+service OFFLINE trace replay: 3/3
+service BLOCKING terminal random: 2/2
+service BLOCKING terminal ShareGPT: 2/2
+CPU Python page allocator: pass
+GPU A100 Triton page allocator: pass
+PASS all acceptance checks
+```
+
+关键结果：
+
+| Case | Mean TTFT | Mean E2E | Prefix reused |
+|---|---:|---:|---:|
+| replay in-process | 8.583 ms | 8.583 ms | 0.250000 |
+| BLOCKING AIC in-process | 32.128 ms | 32.128 ms | 0 |
+| ShareGPT AIC in-process | 36.916 ms | 129.533 ms | 0 |
+| GLM5 P-node AIC | 31.862 ms | 31.862 ms | 0 |
+| DSv4Pro P-node ML | 290.666 ms | 290.666 ms | 0 |
+| service OFFLINE replay | 8.531 ms | 8.531 ms | 0.250000 |
+| service BLOCKING ShareGPT | 10.947 ms | 86.302 ms | 0.642857 |
+
+验收过程中修复了 v0.5.16 benchmark CLI 入口、BLOCKING client pacing、
+BLOCKING wall/simulation clock 混用、服务 warmup readiness 竞态、服务模式
+request 文件计数，以及 Qwen H20 AIC database version。最终目录含 `PASS`
+哨兵和 21 份分项日志。
+
 ## 代码回归
 
 ```bash
@@ -26,8 +71,8 @@ bash scripts/validate_cpu_gpu.sh
 验收：
 
 ```text
-bundle tests: 5 pass
-simulator unit/hook/predictor tests: 9 pass
+bundle tests: 10 pass
+simulator unit/hook/predictor tests: 11 pass
 deterministic runner: pass
 CPU-only runner + trace replay: pass
 GPU-visible runner + trace replay: pass

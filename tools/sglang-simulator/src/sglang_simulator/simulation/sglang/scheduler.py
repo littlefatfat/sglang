@@ -202,7 +202,9 @@ class ReqDispatcher:
 
         if recv_reqs and StateManager.get_last_real_time_ts() == 0:
             StateManager.set_last_real_time_ts(time.time())
-            StateManager.set_global_clock(0)
+            StateManager.set_global_clock(
+                now if self.mode == SimulationMode.BLOCKING else 0
+            )
 
         return recv_reqs
 

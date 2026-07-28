@@ -4,6 +4,21 @@ import os
 from pathlib import Path
 
 
+def patch_cpu_device_capability() -> None:
+    """Keep model-specific ServerArgs checks usable in CPU simulation."""
+    if os.environ.get("SGLANG_USE_CPU_ENGINE") != "1":
+        return
+
+    import torch
+
+    torch.cuda.get_device_capability = lambda *_args, **_kwargs: (10, 0)
+
+
+# Spawn imports this module again before reconstructing ServerArgs. Install the
+# shim at import time when the parent has already selected CPU simulation.
+patch_cpu_device_capability()
+
+
 def load_json(path: str | Path) -> dict:
     with open(path, encoding="utf-8") as f:
         return json.load(f)
@@ -28,10 +43,19 @@ def configure_environment(
     os.environ["SGLANG_SIMULATOR_OUTPUT_MODE"] = mode
     if device == "cpu":
         os.environ["SGLANG_USE_CPU_ENGINE"] = "1"
+        patch_cpu_device_capability()
     else:
         os.environ.pop("SGLANG_USE_CPU_ENGINE", None)
     os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
     return output
+
+
+def normalize_dummy_engine_topology(raw: dict) -> None:
+    """Keep the physical dummy Engine single-process."""
+    # HiSim models the target topology through hisim_config.scheduler.
+    # Launching TP4/TP8 workers here only adds NUMA/NCCL requirements.
+    for key in ("tp_size", "ep_size", "dp_size", "pp_size"):
+        raw[key] = 1
 
 
 def build_server_args(
@@ -49,6 +73,7 @@ def build_server_args(
     kv_bytes = raw.pop("kv_bytes_per_token_per_gpu", None)
     if "max_total_num_tokens" in raw:
         raw["max_total_tokens"] = raw.pop("max_total_num_tokens")
+    normalize_dummy_engine_topology(raw)
     raw.update(
         {
             "load_format": "dummy",

@@ -20,7 +20,18 @@ python3 scripts/check_environment.py
 - 每次运行使用独立的 `SGLANG_SIMULATOR_OUTPUT_DIR` 和
   `SGLANG_SIMULATOR_HICACHE_STORAGE_KEYS_PATH`。
 
-## 1.1 CPU/GPU 环境功能验证
+## 1.1 一键验收
+
+```bash
+HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/final-acceptance \
+  bash scripts/acceptance.sh
+```
+
+覆盖静态测试、两种启动方式、OFFLINE/BLOCKING、三种 workload、三种 predictor、
+四个模型配置、服务终端打流、CPU allocator 和 GPU Triton allocator。全部通过时
+最后一行是 `PASS all acceptance checks`。
+
+## 1.2 CPU/GPU 环境功能验证
 
 ```bash
 bash scripts/validate_cpu_gpu.sh
@@ -54,7 +65,9 @@ export SGLANG_SIMULATOR_OUTPUT_MODE=OFFLINE   # 不 sleep，按逻辑时间运�
 export SGLANG_SIMULATOR_OUTPUT_MODE=BLOCKING  # 按预测 step 时间 sleep
 ```
 
-准确度回归优先用 `OFFLINE`。验证服务交互行为时用 `BLOCKING`。
+准确度回归用 `OFFLINE`。服务交互验收用 `BLOCKING`；此时 benchmark 客户端
+也必须设置 `SGLANG_SIMULATOR_OUTPUT_MODE=BLOCKING`，客户端才会按
+`request-rate` 实际等待。
 
 ## 3. 启动方式一：服务化
 
@@ -72,6 +85,15 @@ python3 scripts/start_service.py \
 
 ### 3.1 终端打 benchmark 流量
 
+客户端进程固定使用 CPU；这只避免导入无关 GPU kernel，不改变服务端 allocator：
+
+```bash
+export SGLANG_USE_CPU_ENGINE=1
+export CUDA_VISIBLE_DEVICES=""
+export SGLANG_SIMULATOR_OUTPUT_MODE=OFFLINE
+export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim/qwen3-8b-service
+```
+
 Random：
 
 ```bash
@@ -80,12 +102,15 @@ python3 -m sglang_simulator.simulation.bench_serving \
   --base-url http://127.0.0.1:30000 \
   --model /nfs/Qwen/Qwen3-8B \
   --dataset-name random \
+  --dataset-path workloads/sharegpt.example.json \
   --request-rate 4 \
   --random-input-len 1024 \
   --random-output-len 128 \
-  --num-prompts 100 \
+  --num-prompts 2 \
   --warmup-requests 0
 ```
+
+SGLang v0.5.16 的 random sampler 需要 `--dataset-path` 作为本地 prompt 语料。
 
 ShareGPT：
 
@@ -287,7 +312,8 @@ python3 scripts/run_inprocess.py \
 ## 8. 验证
 
 ```bash
-python3 scripts/validate_result.py /tmp/hisim/qwen3-8b-inprocess
+python3 scripts/validate_result.py \
+  /tmp/hisim/qwen3-8b-inprocess --expected-requests 3
 ```
 
 0714 与 v0.5.16 对比：

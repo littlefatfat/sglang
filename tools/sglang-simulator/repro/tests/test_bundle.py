@@ -1,6 +1,8 @@
 import asyncio
 import importlib.util
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -60,6 +62,19 @@ def test_validate_result(tmp_path):
     (tmp_path / "result.request.jsonl").write_text("{}\n")
     module.validate(tmp_path)
 
+    (tmp_path / "result.metrics.json").unlink()
+    (tmp_path / "result.request.jsonl").unlink()
+    (tmp_path / "metrics.json").write_text(json.dumps(metrics))
+    (tmp_path / "request.jsonl").write_text("{}\n")
+    module.validate(tmp_path, expected_requests=1)
+
+    try:
+        module.validate(tmp_path, expected_requests=2)
+    except AssertionError as error:
+        assert "expected=2" in str(error)
+    else:
+        raise AssertionError("expected request-count validation to fail")
+
 
 def test_send_trace_accepts_empty_text_and_json_responses():
     module = load_script("send_trace.py")
@@ -92,3 +107,99 @@ def test_send_trace_accepts_empty_text_and_json_responses():
 
     assert asyncio.run(request("")) is None
     assert asyncio.run(request("OK")) == "OK"
+
+
+def test_cpu_capability_patch_is_scoped_to_cpu_simulation(monkeypatch):
+    module = load_script("common.py")
+    import torch
+
+    original = torch.cuda.get_device_capability
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    monkeypatch.delenv("SGLANG_USE_CPU_ENGINE", raising=False)
+    module.patch_cpu_device_capability()
+    assert torch.cuda.get_device_capability is original
+
+    monkeypatch.setenv("SGLANG_USE_CPU_ENGINE", "1")
+    module.patch_cpu_device_capability()
+    assert torch.cuda.get_device_capability() == (10, 0)
+
+
+def test_spawned_python_installs_cpu_capability_shim():
+    env = os.environ.copy()
+    env["SGLANG_USE_CPU_ENGINE"] = "1"
+    env["CUDA_VISIBLE_DEVICES"] = ""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import torch; print(torch.cuda.get_device_capability())",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.stdout.strip() == "(10, 0)"
+
+
+def test_target_topology_is_kept_out_of_dummy_engine():
+    module = load_script("common.py")
+    engine = {"tp_size": 8, "ep_size": 4, "dp_size": 2, "pp_size": 3}
+    module.normalize_dummy_engine_topology(engine)
+
+    assert engine == {
+        "tp_size": 1,
+        "ep_size": 1,
+        "dp_size": 1,
+        "pp_size": 1,
+    }
+    target = json.load(open(ROOT / "configs/glm5-p-b300/hisim.aic.json"))
+    assert target["scheduler"]["tp_size"] == 8
+
+
+def test_benchmark_client_supports_offline_and_blocking_metadata():
+    env = os.environ.copy()
+    env["SGLANG_USE_CPU_ENGINE"] = "1"
+    env["CUDA_VISIBLE_DEVICES"] = ""
+    script = r"""
+import asyncio
+import os
+from dataclasses import dataclass, field
+
+from sglang_simulator.simulation.bench_serving import override_get_request
+
+@dataclass
+class Row:
+    extra_request_body: dict = field(default_factory=dict)
+
+async def collect(mode):
+    os.environ["SGLANG_SIMULATOR_OUTPUT_MODE"] = mode
+    rows = [Row(), Row()]
+    result = []
+    async for row in override_get_request(rows, float("inf")):
+        result.append(row.extra_request_body["simulation"])
+    return result
+
+offline = asyncio.run(collect("OFFLINE"))
+assert [item["created_time"] for item in offline] == [0, 0]
+assert all("server_created_time" not in item for item in offline)
+
+blocking = asyncio.run(collect("BLOCKING"))
+assert [item["created_time"] for item in blocking] == [0, 0]
+assert all(item["server_created_time"] > 0 for item in blocking)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0
+
+
+def test_acceptance_script_has_completion_sentinel():
+    script = ROOT / "scripts/acceptance.sh"
+    assert script.read_text().rstrip().endswith(
+        "# HISIM_ACCEPTANCE_COMPLETE"
+    )

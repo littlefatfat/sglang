@@ -11,7 +11,7 @@ def require_nonnegative(metrics: dict, key: str) -> None:
         raise AssertionError(f"{key} must be finite and >= 0, got {value}")
 
 
-def validate(path: Path) -> None:
+def validate(path: Path, expected_requests: int | None = None) -> None:
     metrics_path = path / "result.metrics.json"
     if not metrics_path.exists():
         metrics_path = path / "metrics.json"
@@ -21,6 +21,10 @@ def validate(path: Path) -> None:
     assert metrics["completed"] == expected, (
         f"completed={metrics['completed']} num_requests={expected}"
     )
+    if expected_requests is not None:
+        assert metrics["completed"] == expected_requests, (
+            f"completed={metrics['completed']} expected={expected_requests}"
+        )
     for key in ("duration", "mean_ttft_ms", "mean_e2e_latency_ms"):
         require_nonnegative(metrics, key)
 
@@ -38,8 +42,9 @@ def validate(path: Path) -> None:
         f"prefix={metrics.get(keys[0])} device+host+storage={parts}"
     )
 
-    request_path = path / "result.request.jsonl"
-    if request_path.exists():
+    request_paths = (path / "result.request.jsonl", path / "request.jsonl")
+    request_path = next((candidate for candidate in request_paths if candidate.exists()), None)
+    if request_path is not None:
         request_count = sum(1 for line in open(request_path) if line.strip())
         assert request_count == metrics["completed"], (
             f"request rows={request_count} completed={metrics['completed']}"
@@ -50,7 +55,9 @@ def validate(path: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("result_dir", type=Path)
-    validate(parser.parse_args().result_dir)
+    parser.add_argument("--expected-requests", type=int)
+    args = parser.parse_args()
+    validate(args.result_dir, args.expected_requests)
 
 
 if __name__ == "__main__":

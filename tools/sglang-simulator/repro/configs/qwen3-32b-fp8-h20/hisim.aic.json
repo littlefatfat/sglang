@@ -19,6 +19,6 @@
     "data_type": "FP8",
     "kv_cache_data_type": "FP16",
     "backend_name": "sglang",
-    "backend_version": "0.5.9"
+    "backend_version": "0.5.10.260511"
   }
 }

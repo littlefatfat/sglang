@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import json
 import os
 import re
@@ -9,8 +10,8 @@ from typing import AsyncGenerator, List, Optional
 import aiohttp
 import numpy as np
 
-from sglang import bench_serving
-from sglang.bench_serving import DatasetRow
+from sglang.benchmark import serving as bench_serving
+from sglang.benchmark.serving import DatasetRow
 
 # Hijack aiohttp request sending to rewrite simulation metadata into a server-visible path.
 #
@@ -61,16 +62,14 @@ def install_aiohttp_json_hijack(
 
 # Override request generation for simulation mode.
 #
-# Instead of enforcing real-time pacing on the benchmark client, the delay implied
-# by `request_rate` is translated into `simulation.created_time` and injected into
-# each request. In other words, the benchmark encodes the logical arrival time of
-# every request, and the simulator is responsible for replaying the traffic pattern
-# based on that timestamp.
+# In OFFLINE mode, `request_rate` is translated into `simulation.created_time`.
+# The simulator replays logical arrivals without client-side sleeps.
 #
-# When `use_trace_timestamps` is enabled, the original trace timestamp is normalized
-# relative to the first request and written into `created_time`.
-# Otherwise, inter-arrival intervals sampled from the request rate are accumulated
-# and stored as `created_time` without actually sleeping on the client side.
+# BLOCKING mode keeps the same metadata, paces the client in real time, and records
+# `server_created_time`, so request, queue, and step timestamps use one origin.
+#
+# Trace timestamps are normalized relative to the first request. Without a trace,
+# Poisson inter-arrival intervals are accumulated.
 async def override_get_request(
     input_requests: List[DatasetRow],
     request_rate: float,
@@ -79,6 +78,7 @@ async def override_get_request(
     timestamp_scale_s: float = 1000,  # 1000: ms -> s
 ) -> AsyncGenerator[DatasetRow, None]:
 
+    blocking = os.getenv("SGLANG_SIMULATOR_OUTPUT_MODE", "OFFLINE") == "BLOCKING"
     if use_trace_timestamps:
         print(
             f"Using trace timestamps for request generation with slowdown factor {slowdown_factor}."
@@ -90,12 +90,24 @@ async def override_get_request(
         trace_start_time = input_requests[0].timestamp if input_requests else 0
 
         for request in input_requests:
+            created_time = (
+                (request.timestamp - trace_start_time)
+                / timestamp_scale_s
+                * slowdown_factor
+            )
+            if blocking:
+                target_time = start_time + created_time
+                sleep_duration = target_time - time.perf_counter()
+                if sleep_duration > 0:
+                    await asyncio.sleep(sleep_duration)
+            simulation = {
+                "created_time": created_time,
+                "total_request": len(input_requests),
+            }
+            if blocking:
+                simulation["server_created_time"] = time.time()
             request.extra_request_body = {
-                "simulation": {
-                    "created_time": (request.timestamp - trace_start_time)
-                    / timestamp_scale_s,
-                    "total_request": len(input_requests),
-                }
+                "simulation": simulation
             }
 
             yield request
@@ -103,11 +115,14 @@ async def override_get_request(
         input_requests_iter = iter(input_requests)
         start_time = 0
         for request in input_requests_iter:
+            simulation = {
+                "created_time": start_time,
+                "total_request": len(input_requests),
+            }
+            if blocking:
+                simulation["server_created_time"] = time.time()
             request.extra_request_body = {
-                "simulation": {
-                    "created_time": start_time,
-                    "total_request": len(input_requests),
-                }
+                "simulation": simulation
             }
             yield request
 
@@ -117,8 +132,9 @@ async def override_get_request(
 
             # Sample the request interval from the exponential distribution.
             interval = np.random.exponential(1.0 / request_rate)
+            if blocking:
+                await asyncio.sleep(interval)
             # The next request will be sent after the interval.
-            # await asyncio.sleep(interval)
             start_time += interval
 
 
@@ -139,7 +155,10 @@ original_calculate_metrics = bench_serving.calculate_metrics
 def wrapped_calculate_metrics(*args, **simulation_metrics):
     real_metrics, output_lens = original_calculate_metrics(*args, **simulation_metrics)
 
-    out_dir = os.getenv("SGLANG_SIMULATOR_OUTPUT_DIR", "/tmp/sglang_simulator/output/")
+    out_dir = os.getenv("SGLANG_SIMULATOR_OUTPUT_DIR")
+    if not out_dir:
+        print("SGLANG_SIMULATOR_OUTPUT_DIR is unset; using client-side metrics")
+        return real_metrics, output_lens
     metrics_path = os.path.join(out_dir, "metrics.json")
     if not os.path.exists(metrics_path):
         print(f"Fail to get simulation metrics from {out_dir}")
@@ -172,6 +191,4 @@ install_aiohttp_json_hijack(hijack_url_regex=r"generate$")
 
 
 if __name__ == "__main__":
-    parser = bench_serving.get_args_parser()
-    args = parser.parse_args()
-    bench_serving.run_benchmark(args)
+    bench_serving.cli_main()
