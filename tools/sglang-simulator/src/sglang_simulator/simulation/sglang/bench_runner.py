@@ -5,52 +5,18 @@ from dataclasses import asdict
 from typing import Iterator
 
 import numpy as np
-import sglang_simulator.hook as sglang_simulator_hook
-import torch
 from sglang_simulator.dataset import (
     BaseDataset,
     GenericRequest,
 )
 from sglang_simulator.simulation.benchmark import BaseBenchmarkRunner, BenchmarkConfig
-from sglang_simulator.simulation.sglang import (
-    cache_controller,
-    hicache_storage,
-    hiradix_cache,
-    mem_cache_allocator,
-    mem_pool_host,
-    model_runner,
-    scheduler,
-    sgl_kernel_hook,
+from sglang_simulator.simulation.sglang.hook_bootstrap import (
+    install_simulator_hooks,
+    run_simulator_scheduler_process,
 )
 from sglang_simulator.utils.logger import get_logger
 
-# hook the sglang implementation
-if not torch.cuda.is_available():
-    # CPU Platform
-    sglang_simulator_hook.install_module_hooks(
-        [sgl_kernel_hook.M_SGLangKernelLoadUtilHook]
-    )
-# COMMENTED-OUT (M_SGLangCommonHook removed in rebase, replaced by M_SGLangKernelLoadUtilHook above):
-# sglang_simulator_hook.install_module_hooks(
-#     [sgl_kernel_hook.M_SGLangCommonHook]
-# )
-sglang_simulator_hook.install_class_hooks(
-    [
-        scheduler.C_SchedulerHook,
-        scheduler.C_SglangPrefillAdderHook,
-        scheduler.C_SchedulerRequestReceiver,
-        model_runner.C_ModelRunnerHook,
-        hicache_storage.C_StorageBackendFactory,
-        cache_controller.C_HiCacheController,
-        hiradix_cache.C_HiRadixCacheHook,
-        mem_cache_allocator.C_PagedTokenToKVPoolAllocatorHook,
-        mem_pool_host.C_MHATokenToKVPoolHostHook,
-        mem_pool_host.C_HostKVCacheHook,
-        mem_pool_host.C_DeepSeekV4SingleKVPoolHook,
-        mem_pool_host.C_DeepSeekV4PagedHostPoolHook,
-        mem_pool_host.C_DeepSeekV4StateHostPoolHook,
-    ]
-)
+install_simulator_hooks()
 
 
 SGLANG_SIMULATOR_OUTPUT_DIR = os.getenv(
@@ -71,12 +37,18 @@ from sglang.srt.server_args import ServerArgs  # noqa
 logger = get_logger("sglang_simulator")
 
 
+class SGLangSimulationEngine(Engine):
+    """Engine whose spawned scheduler installs HiSim hooks explicitly."""
+
+    run_scheduler_process_func = staticmethod(run_simulator_scheduler_process)
+
+
 class SGLangBenchmarkRunner(BaseBenchmarkRunner):
     def __init__(self, server_args: ServerArgs):
         # disable some features which is not necessary for simulation.
         server_args.disable_cuda_graph = True
         self.server_args = server_args
-        self.engine = Engine(**asdict(server_args))
+        self.engine = SGLangSimulationEngine(**asdict(server_args))
 
     def flush_cache(self):
         self.engine.flush_cache()
@@ -112,7 +84,7 @@ class SGLangBenchmarkRunner(BaseBenchmarkRunner):
         benchmark_config: BenchmarkConfig,
         dataset: BaseDataset,
     ):
-        await self.engine.tokenizer_manager.start_profile(profile_prefix="reset")
+        await self.engine.tokenizer_manager.start_profile()
 
         if os.path.exists(SIMULATION_METRICS_PATH):
             with open(SIMULATION_METRICS_PATH, "w") as f:

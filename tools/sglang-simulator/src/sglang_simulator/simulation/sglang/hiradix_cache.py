@@ -14,6 +14,11 @@ class C_HiRadixCacheHook(BaseHook):
             # So we have to handle the backup or prefetch operation manually.
             self.cache_controller.handle_backup_operation()
             self.cache_controller.handle_prefetch_operation()
-            return original_check_hicache_events(self, *args, **kwargs)
+            result = original_check_hicache_events(self, *args, **kwargs)
+            # v0.5.16 allocates host pages in check_hicache_events after the
+            # storage query. Run the simulated transfer only after that step.
+            if hasattr(self.cache_controller, "prefetch_hit_queue"):
+                self.cache_controller.handle_prefetch_operation()
+            return result
 
         target.check_hicache_events = wrapped_check_hicache_events

@@ -32,10 +32,23 @@ class C_HiCacheController(BaseHook):
         original_terminate_prefetch = target.terminate_prefetch
         original_storage_hit_query = target._storage_hit_query
         original_init = target.__init__
+        original_append_host_mem_release = target.append_host_mem_release
 
         def wrapped_init(self, *args, **kwargs):
             self.sim_prefetch_buffer = Queue()
-            return original_init(self, *args, **kwargs)
+            result = original_init(self, *args, **kwargs)
+            # v0.5.16 creates this queue inside the real IO thread. HiSim
+            # replaces that thread, so create the scheduler/IO handoff here.
+            if hasattr(self, "prefetch_hit_queue"):
+                self.prefetch_buffer = Queue()
+            return result
+
+        def wrapped_append_host_mem_release(self, host_indices):
+            # A terminated v0.5.16 prefetch may not have allocated host memory
+            # yet. There is nothing to release in that case.
+            if host_indices is None:
+                return
+            return original_append_host_mem_release(self, host_indices)
 
         def override_backup_thread_func(self, *args, **kwargs):
             # Async thread: perform no action
@@ -90,7 +103,10 @@ class C_HiCacheController(BaseHook):
 
                     # Ignore terminated operation
                     if operation._terminated_flag:
-                        self.append_host_mem_release(operation.host_indices)
+                        if hasattr(self, "prefetch_revoke_queue"):
+                            self.prefetch_revoke_queue.put(operation.request_id)
+                        else:
+                            self.append_host_mem_release(operation.host_indices)
                         continue
 
                     hash_value, storage_hit_count = self._storage_hit_query(operation)
@@ -99,6 +115,9 @@ class C_HiCacheController(BaseHook):
                         self.prefetch_threshold is not None
                         and storage_hit_count < self.prefetch_threshold
                     ):
+                        if hasattr(self, "prefetch_revoke_queue"):
+                            self.prefetch_revoke_queue.put(operation.request_id)
+                            continue
                         operation.mark_terminate()
                         self.append_host_mem_release(operation.host_indices)
                         continue
@@ -106,6 +125,13 @@ class C_HiCacheController(BaseHook):
                         operation.hash_value = hash_value[
                             : (storage_hit_count // self.page_size)
                         ]
+                        if hasattr(self, "prefetch_hit_queue"):
+                            # v0.5.16 allocates exactly the storage-hit length
+                            # on the scheduler thread before simulated transfer.
+                            operation.storage_hit_count = storage_hit_count
+                            self.prefetch_hit_queue.put(operation)
+                            continue
+
                         storage_hit_count = (
                             storage_hit_count // self.page_size * self.page_size
                         )
@@ -154,6 +180,19 @@ class C_HiCacheController(BaseHook):
                         self.append_host_mem_release(
                             operation.host_indices[storage_hit_count:]
                         )
+
+            # v0.5.16's scheduler-side HiRadixCache moves queried operations
+            # here after allocating host pages. Feed them into the existing
+            # virtual-time transfer loop.
+            prefetch_buffer = getattr(self, "prefetch_buffer", None)
+            if prefetch_buffer is not None:
+                while not prefetch_buffer.empty():
+                    try:
+                        operation = prefetch_buffer.get(block=False)
+                        if operation is not None:
+                            self.sim_prefetch_buffer.put(operation)
+                    except Empty:
+                        break
 
             # handle operation in sim_prefetch_buffer
             while remain_dur > 0:
@@ -232,6 +271,9 @@ class C_HiCacheController(BaseHook):
         target.backup_thread_func = override_backup_thread_func
         target.handle_backup_operation = handle_backup_operation
         target.handle_prefetch_operation = handle_prefetch_operation
+        target.append_host_mem_release = wrapped_append_host_mem_release
         target._generic_page_set = override_generic_page_set
         target.terminate_prefetch = wrapped_terminate_prefetch
         target.storage_hit_query = wrapped_storage_hit_query
+        if hasattr(target, "_storage_hit_query"):
+            target._storage_hit_query = wrapped_storage_hit_query

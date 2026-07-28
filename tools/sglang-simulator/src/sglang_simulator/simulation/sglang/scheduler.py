@@ -83,6 +83,11 @@ class ReqDispatcher:
     def next_req_from_future_ts(self) -> float:
         return self.future_queue[0][0]
 
+    def reset(self) -> None:
+        self.immediate_release_requests.clear()
+        self.future_queue.clear()
+        self.offline_recv_all_requests = False
+
     def add(self, reqs: list):
         if self.mode == SimulationMode.BLOCKING:
             self.immediate_release_requests.extend(reqs)
@@ -304,10 +309,13 @@ class C_SchedulerHook(BaseHook):
 
         def wrapped_get_new_batch_prefill(self, *args, **kwargs):
             start = time.perf_counter()
-            new_batch = original_get_new_batch_prefill(self, *args, **kwargs)
+            result = original_get_new_batch_prefill(self, *args, **kwargs)
             C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST = (
                 time.perf_counter() - start
             )
+
+            # v0.5.16 returns NextBatchPlan instead of ScheduleBatch directly.
+            new_batch = getattr(result, "batch_to_run", result)
 
             now = time.time()
             if new_batch is not None:
@@ -342,7 +350,7 @@ class C_SchedulerHook(BaseHook):
                 f"waiting queue={len(self.waiting_queue)}"
             )
 
-            return new_batch
+            return result
 
         def wrapped_prefetch_kvcache(self, *args, **kwargs):
             original_prefetch_kvcache(self, *args, **kwargs)
@@ -367,9 +375,14 @@ class C_SchedulerHook(BaseHook):
                 simulation_batch = SimulationScheduleBatch(reqs=[])
                 if batch.forward_mode.is_extend():
                     for req in batch.reqs:
+                        extend_length = getattr(req, "extend_input_len", None)
+                        if extend_length is None:
+                            # v0.5.16 replaced extend_input_len with an
+                            # explicit half-open token range.
+                            extend_length = req.extend_range.length
                         simulation_batch.reqs.append(
                             ScheduleRequest(
-                                extend_length=req.extend_input_len,
+                                extend_length=extend_length,
                                 past_kv_length=len(req.prefix_indices)
                                 + len(req.output_ids),
                             )
@@ -554,6 +567,7 @@ class C_SchedulerHook(BaseHook):
             request_stats_manager.reset()
             C_SchedulerHook.ITERATION_STATS.clear()
             C_SchedulerHook.TOTAL_PREDICTOR_TIME_COST = 0
+            C_SchedulerHook.REQ_DISPATCHER.reset()
 
             ProfileReqOutput = getattr(
                 importlib.import_module("sglang.srt.managers.io_struct"),
@@ -564,7 +578,10 @@ class C_SchedulerHook(BaseHook):
                 "output_directory": output_dir,
             }
 
-            return ProfileReqOutput(True, json.dumps(result))
+            return ProfileReqOutput(
+                success=True,
+                message=json.dumps(result),
+            )
 
         def wrapped_init_request_dispatcher(self, *args, **kwargs):
             ret = original_init_request_dispatcher(self, *args, **kwargs)

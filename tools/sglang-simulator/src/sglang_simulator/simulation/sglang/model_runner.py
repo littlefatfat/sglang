@@ -28,6 +28,21 @@ class C_ModelRunnerHook(BaseHook):
             self.dtype = self.model_config.dtype
             self.configure_kv_cache_dtype()
 
+            # v0.5.16's KVCacheConfigurator consumes these fields after
+            # initialize(). The real load_model() normally populates the first
+            # two, but simulation deliberately skips weight loading.
+            from sglang.srt.model_executor.model_runner import (
+                resolve_sliding_window_size,
+            )
+            from sglang.srt.model_executor.model_runner_components.layer_setup import (
+                resolve_layer_indices,
+            )
+
+            self.sliding_window_size = resolve_sliding_window_size(
+                self.model, self.model_config
+            )
+            self.prefill_aware_swa = False
+
             if ConfigManager.get_model_info() is None:
                 model = resolve_model_info(self.model_config)
                 ConfigManager.set_model_info(model)
@@ -89,20 +104,15 @@ class C_ModelRunnerHook(BaseHook):
                 f"Model runner initialized with {self.max_total_num_tokens} tokens. Maximum number of requests: {max_num_reqs}"
             )
 
-            model_has_mtp_layers = (
-                self.model_config.num_nextn_predict_layers is not None
+            self.layer_info = resolve_layer_indices(
+                model=self.model,
+                model_config=self.model_config,
+                is_draft_worker=self.is_draft_worker,
+                spec_algorithm=self.spec_algorithm,
             )
-            model_num_layers = (
-                self.model_config.num_nextn_predict_layers
-                if self.is_draft_worker and model_has_mtp_layers
-                else max(
-                    self.model_config.num_hidden_layers,
-                    self.model_config.num_attention_layers,
-                )
-            )
-            self.start_layer = getattr(self.model, "start_layer", 0)
-            self.end_layer = getattr(self.model, "end_layer", model_num_layers)
-            self.num_effective_layers = self.end_layer - self.start_layer
+            self.start_layer = self.layer_info.start_layer
+            self.end_layer = self.layer_info.end_layer
+            self.num_effective_layers = self.layer_info.num_effective_layers
 
             from sglang.srt.mem_cache.memory_pool import ReqToTokenPool
 
@@ -231,8 +241,27 @@ class C_ModelRunnerHook(BaseHook):
             )
 
             self.use_ngram_embedding = False
+            self.canary_manager = None
+            self.init_ngram_embedding_manager()
 
             return
+
+        def wrapped_alloc_memory_pool(self, memory_pool_config=None):
+            """Reuse the lightweight pools created by override_initialize."""
+            if memory_pool_config is not None:
+                self.memory_pool_config = memory_pool_config
+
+        def wrapped_init_attention_backends(self):
+            # Forward computation is mocked, so no real attention backend is
+            # required. Keep the field expected by scheduler code.
+            self.attn_backend = None
+
+        def wrapped_init_cuda_graphs(
+            self, capture_decode_cuda_graph=True
+        ):
+            # Graph capture is intentionally disabled for simulation.
+            self.graph_mem_usage = 0
+            self.cuda_graph_runner = None
 
         def wrapped_forward(self, *args, **kwargs):
             batch = args[0]
@@ -265,6 +294,9 @@ class C_ModelRunnerHook(BaseHook):
             return None
 
         target.initialize = override_initialize
+        target.alloc_memory_pool = wrapped_alloc_memory_pool
+        target.init_attention_backends = wrapped_init_attention_backends
+        target.init_cuda_graphs = wrapped_init_cuda_graphs
         target.forward = wrapped_forward
         target.sample = wrapped_sample
         target.compute_logprobs_only = wrapped_compute_logprobs_only

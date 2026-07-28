@@ -4,47 +4,13 @@ import os
 import sys
 from typing import Optional
 
-import sglang_simulator.hook as sglang_simulator_hook
-import torch
-from sglang_simulator.simulation.sglang import (
-    cache_controller,
-    hicache_storage,
-    hiradix_cache,
-    mem_cache_allocator,
-    mem_pool_host,
-    model_runner,
-    scheduler,
-    sgl_kernel_hook,
+from sglang_simulator.simulation.sglang.hook_bootstrap import (
+    install_simulator_hooks,
+    run_simulator_scheduler_process,
 )
 from sglang_simulator.utils import get_logger
 
-# hook the sglang implementation
-if not torch.cuda.is_available():
-    # CPU Platform
-    sglang_simulator_hook.install_module_hooks(
-        [sgl_kernel_hook.M_SGLangKernelLoadUtilHook]
-    )
-# COMMENTED-OUT (M_SGLangCommonHook removed in rebase, replaced by M_SGLangKernelLoadUtilHook above):
-# sglang_simulator_hook.install_module_hooks(
-#     [sgl_kernel_hook.M_SGLangCommonHook]
-# )
-sglang_simulator_hook.install_class_hooks(
-    [
-        scheduler.C_SchedulerHook,
-        scheduler.C_SglangPrefillAdderHook,
-        scheduler.C_SchedulerRequestReceiver,
-        model_runner.C_ModelRunnerHook,
-        hicache_storage.C_StorageBackendFactory,
-        cache_controller.C_HiCacheController,
-        hiradix_cache.C_HiRadixCacheHook,
-        mem_cache_allocator.C_PagedTokenToKVPoolAllocatorHook,
-        mem_pool_host.C_MHATokenToKVPoolHostHook,
-        mem_pool_host.C_HostKVCacheHook,
-        mem_pool_host.C_DeepSeekV4SingleKVPoolHook,
-        mem_pool_host.C_DeepSeekV4PagedHostPoolHook,
-        mem_pool_host.C_DeepSeekV4StateHostPoolHook,
-    ]
-)
+install_simulator_hooks()
 
 
 logger = get_logger("sgl_simulator")
@@ -93,6 +59,9 @@ if __name__ == "__main__":
         os.environ["SGLANG_SIMULATOR_CONFIG_PATH"] = simulation_args.sim_config_path
 
     try:
-        launch_server(server_args)
+        launch_server(
+            server_args,
+            run_scheduler_process_func=run_simulator_scheduler_process,
+        )
     finally:
         kill_process_tree(os.getpid(), include_parent=False)

@@ -11,7 +11,10 @@
         "num_device_per_node": 8
     },
     "predictor": {
-        "name": "aiconfigurator"
+        "name": "replay",
+        "database_path": "tools/sglang-simulator/test/assets/replay_table.json",
+        "miss_strategy": "knn",
+        "miss_knn_k": 1
     },
     "scheduler": {
         "tp_size": 1,
