@@ -1,4 +1,3 @@
-from sglang_simulator.simulation.sglang.utils import resolve_model_info
 from sglang_simulator.simulation.types import (
     SchedulerConfig,
 )
@@ -10,11 +9,9 @@ from sglang_simulator.time_predictor import (
     ScheduleRequest,
 )
 
-from sglang.srt.configs.model_config import ModelConfig
-
 
 def test_time_predictor():
-    model: ModelInfo = resolve_model_info(ModelConfig(model_path="Qwen/Qwen3-8B"))
+    model = ModelInfo(model_path="Qwen/Qwen3-8B")
     hw = AcceleratorInfo(
         name="a100_sxm",
         vendor="NVIDIA",
