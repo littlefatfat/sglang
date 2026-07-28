@@ -11,7 +11,8 @@ logger = get_logger()
 
 class C_MHATokenToKVPoolHostHook(BaseHook):
     HOOK_CLASS_NAME = "MHATokenToKVPoolHost"
-    HOOK_MODULE_NAME = "sglang.srt.mem_cache.memory_pool_host"
+    HOOK_MODULE_NAME = r"^sglang\.srt\.mem_cache\.(memory_pool_host|pool_host\.mha)$"
+    REGEX = True
 
     KV_CACHE_BYTES: Optional[int] = None
     KV_CACHE_BYTES_PER_LAYER: Optional[int] = None
@@ -122,7 +123,8 @@ class C_MHATokenToKVPoolHostHook(BaseHook):
 
 class C_HostKVCacheHook(BaseHook):
     HOOK_CLASS_NAME = "HostKVCache"
-    HOOK_MODULE_NAME = "sglang.srt.mem_cache.memory_pool_host"
+    HOOK_MODULE_NAME = r"^sglang\.srt\.mem_cache\.(memory_pool_host|pool_host\.base)$"
+    REGEX = True
 
     @classmethod
     def hook(cls, target):
