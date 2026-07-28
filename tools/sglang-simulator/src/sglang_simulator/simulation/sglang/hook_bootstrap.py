@@ -1,6 +1,4 @@
-"""Install HiSim hooks in both the parent and spawned scheduler processes."""
-
-import torch
+"""Install HiSim hooks in the parent and spawned SGLang worker processes."""
 
 import sglang_simulator.hook as sglang_simulator_hook
 from sglang_simulator.simulation.sglang import (
@@ -23,10 +21,9 @@ def install_simulator_hooks() -> None:
     if _HOOKS_INSTALLED:
         return
 
-    if not torch.cuda.is_available():
-        sglang_simulator_hook.install_module_hooks(
-            [sgl_kernel_hook.M_SGLangKernelLoadUtilHook]
-        )
+    # The package __init__ loads GPU ops before a child-module import hook can
+    # run reliably under spawn. Seed the loader module before importing SGLang.
+    sgl_kernel_hook.install_load_utils_stub()
 
     sglang_simulator_hook.install_class_hooks(
         [
@@ -57,3 +54,14 @@ def run_simulator_scheduler_process(*args, **kwargs):
     from sglang.srt.managers.scheduler import run_scheduler_process
 
     return run_scheduler_process(*args, **kwargs)
+
+
+def run_simulator_detokenizer_process(*args, **kwargs):
+    """Spawn-safe detokenizer entry point which installs HiSim before imports."""
+    install_simulator_hooks()
+
+    # Detokenizer imports schedule_batch and memory_pool on v0.5.16. Installing
+    # hooks first keeps this CPU-only process from loading real GPU kernels.
+    from sglang.srt.managers.detokenizer_manager import run_detokenizer_process
+
+    return run_detokenizer_process(*args, **kwargs)

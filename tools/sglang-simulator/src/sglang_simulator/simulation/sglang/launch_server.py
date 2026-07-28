@@ -6,6 +6,7 @@ from typing import Optional
 
 from sglang_simulator.simulation.sglang.hook_bootstrap import (
     install_simulator_hooks,
+    run_simulator_detokenizer_process,
     run_simulator_scheduler_process,
 )
 from sglang_simulator.utils import get_logger
@@ -62,6 +63,7 @@ if __name__ == "__main__":
         launch_server(
             server_args,
             run_scheduler_process_func=run_simulator_scheduler_process,
+            run_detokenizer_process_func=run_simulator_detokenizer_process,
         )
     finally:
         kill_process_tree(os.getpid(), include_parent=False)

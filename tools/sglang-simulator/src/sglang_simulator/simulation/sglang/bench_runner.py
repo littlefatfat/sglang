@@ -12,6 +12,7 @@ from sglang_simulator.dataset import (
 from sglang_simulator.simulation.benchmark import BaseBenchmarkRunner, BenchmarkConfig
 from sglang_simulator.simulation.sglang.hook_bootstrap import (
     install_simulator_hooks,
+    run_simulator_detokenizer_process,
     run_simulator_scheduler_process,
 )
 from sglang_simulator.utils.logger import get_logger
@@ -38,9 +39,10 @@ logger = get_logger("sglang_simulator")
 
 
 class SGLangSimulationEngine(Engine):
-    """Engine whose spawned scheduler installs HiSim hooks explicitly."""
+    """Engine whose spawned workers install HiSim hooks explicitly."""
 
     run_scheduler_process_func = staticmethod(run_simulator_scheduler_process)
+    run_detokenizer_process_func = staticmethod(run_simulator_detokenizer_process)
 
 
 class SGLangBenchmarkRunner(BaseBenchmarkRunner):
