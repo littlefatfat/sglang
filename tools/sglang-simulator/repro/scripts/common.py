@@ -13,6 +13,7 @@ def configure_environment(
     hisim_config: str | Path,
     output_dir: str | Path,
     mode: str,
+    device: str = "cpu",
 ) -> Path:
     mode = mode.upper()
     if mode not in {"OFFLINE", "BLOCKING"}:
@@ -25,25 +26,36 @@ def configure_environment(
         output / "hicache_storage_keys.txt"
     )
     os.environ["SGLANG_SIMULATOR_OUTPUT_MODE"] = mode
-    os.environ.setdefault("SGLANG_USE_CPU_ENGINE", "1")
+    if device == "cpu":
+        os.environ["SGLANG_USE_CPU_ENGINE"] = "1"
+    else:
+        os.environ.pop("SGLANG_USE_CPU_ENGINE", None)
     os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
     return output
 
 
-def build_server_args(path: str | Path):
+def build_server_args(
+    path: str | Path,
+    device: str = "cpu",
+    page_size: int | None = None,
+):
     from sglang.srt.server_args import ServerArgs
 
     raw = load_json(path)
     raw.pop("_comment", None)
     raw.pop("version", None)
+    if page_size is not None:
+        raw["page_size"] = page_size
     kv_bytes = raw.pop("kv_bytes_per_token_per_gpu", None)
     if "max_total_num_tokens" in raw:
         raw["max_total_tokens"] = raw.pop("max_total_num_tokens")
     raw.update(
         {
             "load_format": "dummy",
-            "device": "cpu",
+            "device": device,
             "disable_cuda_graph": True,
+            "attention_backend": "torch_native",
+            "sampling_backend": "pytorch",
         }
     )
     allowed = set(inspect.signature(ServerArgs).parameters)

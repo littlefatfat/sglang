@@ -6,7 +6,7 @@ from sglang_simulator.simulation.benchmark import BenchmarkConfig
 os.environ["SGLANG_SIMULATOR_CONFIG_PATH"] = (
     os.path.dirname(__file__) + "/assets/config.json"
 )
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 from sglang_simulator.simulation.sglang.bench_runner import (
     SGLangBenchmarkRunner,

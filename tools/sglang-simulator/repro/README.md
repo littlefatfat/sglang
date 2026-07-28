@@ -20,6 +20,32 @@ python3 scripts/check_environment.py
 - 每次运行使用独立的 `SGLANG_SIMULATOR_OUTPUT_DIR` 和
   `SGLANG_SIMULATOR_HICACHE_STORAGE_KEYS_PATH`。
 
+## 1.1 CPU/GPU 环境功能验证
+
+```bash
+bash scripts/validate_cpu_gpu.sh
+```
+
+指定物理 GPU：
+
+```bash
+HISIM_GPU_ID=1 bash scripts/validate_cpu_gpu.sh
+```
+
+该命令分别在 `CUDA_VISIBLE_DEVICES=""` 和 GPU 可见环境运行：
+
+- CPU spawned runner：cold -> L1 -> L2 -> L3，校验 TTFT/E2E。
+- CPU replay trace：page size 256，使用 Python paged allocator。
+- GPU replay trace：page size 256，实际使用 Triton paged allocator。
+
+两种环境均为 `load_format=dummy`，不加载权重；GPU 模式会分配精简的
+dummy KV tensor 并执行 page 分配 Triton kernel，但不执行真实模型 forward。
+日常纯 CPU 运行无需增加参数；需要 GPU allocator 时增加：
+
+```text
+--device cuda --page-size 256
+```
+
 ## 2. 仿真模式
 
 ```bash

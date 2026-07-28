@@ -102,6 +102,8 @@ def main() -> None:
     parser.add_argument("--server-args", required=True)
     parser.add_argument("--hisim-config", required=True)
     parser.add_argument("--mode", choices=["OFFLINE", "BLOCKING"], default="OFFLINE")
+    parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    parser.add_argument("--page-size", type=int)
     parser.add_argument("--workload", choices=["trace", "random", "sharegpt"], required=True)
     parser.add_argument("--dataset")
     parser.add_argument("--num-prompts", type=int, default=10)
@@ -112,12 +114,14 @@ def main() -> None:
     parser.add_argument("--output-dir", required=True)
     args = parser.parse_args()
 
-    output = configure_environment(args.hisim_config, args.output_dir, args.mode)
+    output = configure_environment(
+        args.hisim_config, args.output_dir, args.mode, args.device
+    )
 
     from sglang_simulator.simulation.benchmark import BenchmarkConfig
     from sglang_simulator.simulation.sglang.bench_runner import SGLangBenchmarkRunner
 
-    server_args = build_server_args(args.server_args)
+    server_args = build_server_args(args.server_args, args.device, args.page_size)
     raw_server_args = json.load(open(args.server_args, encoding="utf-8"))
     if args.workload == "trace":
         if not args.dataset:

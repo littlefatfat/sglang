@@ -20,6 +20,7 @@ python3 scripts/check_environment.py
 ```bash
 bash scripts/test_bundle.sh
 pytest -q ../test/test_simulation_sglang_runner.py
+bash scripts/validate_cpu_gpu.sh
 ```
 
 验收：
@@ -28,6 +29,8 @@ pytest -q ../test/test_simulation_sglang_runner.py
 bundle tests: 5 pass
 simulator unit/hook/predictor tests: 9 pass
 deterministic runner: pass
+CPU-only runner + trace replay: pass
+GPU-visible runner + trace replay: pass
 ```
 
 确定性 runner 必须覆盖：
@@ -37,6 +40,47 @@ cold -> L1 device hit -> L2 host hit -> L3 storage hit
 TTFT/E2E >= 0
 request count exact
 ```
+
+CPU/GPU 验证定义：
+
+```text
+CPU-only: CUDA_VISIBLE_DEVICES=""，torch.cuda.is_available() == false
+GPU-visible: 指定物理 GPU，torch.cuda.is_available() == true
+CPU spawned runner 覆盖 cold -> L1 -> L2 -> L3
+CPU/GPU 均执行 page_size=256 的同一份 replay trace
+```
+
+GPU-visible replay 使用 `device=cuda`，因此
+`PagedTokenToKVPoolAllocator.alloc_extend/alloc_decode` 实际调用 v0.5.16
+的 Triton kernel。`load_format=dummy` 不加载模型权重，HiSim hook 不执行
+真实模型 forward；step 时间仍来自所选 predictor。
+
+2026-07-28 实跑：
+
+```text
+container: hisim-v0516-dev
+CPU-only: torch.cuda.is_available() == false
+GPU-visible: NVIDIA A100-SXM4-80GB
+CPU spawned runner: pass (cold -> L1 -> L2 -> L3)
+GPU-visible spawned runner: pass
+CPU page_size=256 replay: 3/3 requests, pass
+GPU page_size=256 replay: 3/3 requests, pass
+```
+
+v0.5.16 没有删除 GPU page allocator 优化：
+
+```text
+python/sglang/kernels/ops/memory/allocator.py
+PagedTokenToKVPoolAllocator.alloc_extend -> alloc_extend_kernel (Triton)
+PagedTokenToKVPoolAllocator.alloc_decode -> alloc_decode_kernel (Triton)
+```
+
+当前 kernel 还包含 `free_page_ptr` 的 `do_not_specialize` 和动态 blocked loop，
+用于减少第二种指针对齐产生的额外 JIT，以及避免按 extend size 展开。
+
+注意：GPU 首次运行包含 CUDA/Triton 初始化和 JIT，且当前实现会把这段
+wall-clock 计入仿真 `cpu_overhead`。因此 CPU/GPU smoke 只做功能验收；
+准确度或性能对比必须预热，并使用固定/回放 CPU overhead。
 
 ## 历史实测基线
 

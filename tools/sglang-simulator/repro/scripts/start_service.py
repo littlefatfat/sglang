@@ -10,10 +10,14 @@ def main() -> None:
     parser.add_argument("--server-args", required=True)
     parser.add_argument("--hisim-config", required=True)
     parser.add_argument("--mode", choices=["OFFLINE", "BLOCKING"], default="OFFLINE")
+    parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    parser.add_argument("--page-size", type=int)
     parser.add_argument("--output-dir", required=True)
     args = parser.parse_args()
 
-    configure_environment(args.hisim_config, args.output_dir, args.mode)
+    configure_environment(
+        args.hisim_config, args.output_dir, args.mode, args.device
+    )
 
     from sglang_simulator.simulation.sglang.hook_bootstrap import (
         install_simulator_hooks,
@@ -25,7 +29,7 @@ def main() -> None:
     from sglang.srt.entrypoints.http_server import launch_server
     from sglang.srt.utils import kill_process_tree
 
-    server_args = build_server_args(args.server_args)
+    server_args = build_server_args(args.server_args, args.device, args.page_size)
     try:
         launch_server(
             server_args,
