@@ -25,7 +25,7 @@ pytest -q ../test/test_simulation_sglang_runner.py
 验收：
 
 ```text
-bundle tests: all pass
+bundle tests: 5 pass
 simulator unit/hook/predictor tests: 9 pass
 deterministic runner: pass
 ```
@@ -93,4 +93,48 @@ request count = exact match
 Replay miss rate near 0 后再判断 TTFT/E2E
 ML step MAPE <= 5% 才进入 E2E 验证
 AIC 必须单独报告 SOL/SILICON 与实测误差
+```
+
+## GLM5 v0.5.16 实跑
+
+日期：2026-07-28。Case：
+
+```text
+hisim-num-node-1-glm-5-blksz-256-bucket-85-128-cnt-1816-time-60min-pod-9p7wt_slowdown_factor_1
+1816 requests / 60 minutes / GLM-5.1-FP8 / B300 / TP8 replay config
+```
+
+旧版与 v0.5.16 使用相同 trace、`server_args` 和纯 forward replay table：
+
+| 指标 | 旧版 | v0.5.16 | 相对误差 |
+|---|---:|---:|---:|
+| Prefix reused ratio | 0.6699217 | 0.6700850 | 0.0244% |
+| L1 device hit ratio | 0.6230461 | 0.6304010 | 1.1805% |
+| L2 host hit ratio | 0.0468756 | 0.0396840 | 15.3419% |
+| Mean TTFT/E2E | 2542.83 ms | 2657.92 ms | 4.5261% |
+| P90 TTFT/E2E | 5702.74 ms | 5952.61 ms | 4.3817% |
+
+Batch：
+
+```text
+old iterations: 4747
+new iterations: 4582
+old/new mean batch size: 1.1106 / 1.1910
+first mismatch iteration: 5 (zero-based)
+exact sequence match: false
+```
+
+前五步 replay forward latency 完全一致。分叉前，旧版每步记录的
+preprocess+postprocess 约 39–44 ms；v0.5.16 将本机 wall-clock
+`cpu_overhead` 约 57 ms 推进仿真时钟，五步累计差约 80 ms，使下一请求进入
+第六个 batch。`0714_mry_dev` 包含这段 wall-clock 推进，
+`refactor-simplify` 删除了它。
+
+结论：
+
+```text
+前缀树总命中量稳定；L1/L2 分层和 batch 时序未保持不变。
+偏差源是仿真机 wall-clock CPU overhead，不是 replay predictor 或前缀树。
+OFFLINE 准确度回归不能继续依赖本机实测 CPU overhead。
+后续应使用固定/回放 CPU overhead，或使用包含 pre/post 的 replay table 并禁用重复计时。
 ```
