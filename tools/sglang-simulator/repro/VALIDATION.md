@@ -320,7 +320,7 @@ service port: 31029
 结果目录：
 
 ```text
-/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v3
+/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v4
 ```
 
 `PASS` 文件存在。`acceptance.sh` 全部通过：24 个测试、服务化和同进程启动、
@@ -351,3 +351,28 @@ forward-only replay 为 3/3 exact match、0 fallback，且
 两种启动方式的仿真语义一致。时间不做 bitwise exact：0714 语义使用本机
 wall-clock CPU overhead，进程形态会带来亚毫秒差异。本次所有时间指标差异均
 小于逐步 CPU overhead 差值总和 `0.603 ms`。
+
+## DSv4Pro L2 BLOCKING 验证
+
+使用 DSv4Pro P 节点历史 trace 的前 100 个请求，`timestamp_scale=1000`，
+在官方 v0.5.16 GPU 镜像中运行 BLOCKING：
+
+```text
+result: PASS
+completed: 100
+iterations: 37
+L2 host hit ratio: 0.0723926380
+total L2 logical load: 0.652790218 s
+total L2 blocked wall: 0.652944369 s
+total CPU overhead: 0.265831189 s
+```
+
+实际阻塞与逻辑 load 相差 `0.154 ms`，属于 `sleep` 调度开销。该配置关闭
+overlap schedule，因此全部有效 L2 load 都会阻塞。CPU overhead 在计算时
+扣除了实际 L2 阻塞墙钟，没有重复加入这 `0.653 s`。
+
+结果目录：
+
+```text
+/data2/maruiyan.mry/hisim-sglang/validation/v0516/blocking-l2-load
+```

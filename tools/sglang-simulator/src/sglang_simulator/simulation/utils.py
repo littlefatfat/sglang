@@ -243,6 +243,10 @@ def calc_iteration_metrics(
     forward_s = sum(float(item.get("forward_latency", 0) or 0) for item in iteration_stats)
     l2_load_s = sum(float(item.get("l2_load_latency", 0) or 0) for item in iteration_stats)
     cpu_s = sum(float(item.get("cpu_overhead", 0) or 0) for item in iteration_stats)
+    l2_blocking_wall_s = sum(
+        float(item.get("l2_blocking_wall_latency", 0) or 0)
+        for item in iteration_stats
+    )
     total_s = forward_s + l2_load_s + cpu_s
     avg_iter_latency_ms = total_s / iterations * 1000 if iterations else 0
     total_h2d_load_call_count = sum(
@@ -266,6 +270,7 @@ def calc_iteration_metrics(
         "total_forward_s": forward_s,
         "total_l2_load_s": l2_load_s,
         "total_cpu_s": cpu_s,
+        "total_l2_blocking_wall_s": l2_blocking_wall_s,
         "total_step_s": total_s,
         "avg_iter_latency_ms": avg_iter_latency_ms,
         "total_h2d_load_call_count": total_h2d_load_call_count,

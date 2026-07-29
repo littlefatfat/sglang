@@ -73,7 +73,7 @@ bash scripts/test_bundle.sh
 ```bash
 HISIM_PORT=31029 \
 HISIM_GPU_ID=7 \
-HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v3 \
+HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v4 \
   bash scripts/acceptance.sh
 ```
 
@@ -125,6 +125,14 @@ export SGLANG_SIMULATOR_OUTPUT_MODE=BLOCKING  # 按预测 step 时间 sleep
 准确度回归用 `OFFLINE`。服务交互验收用 `BLOCKING`；此时 benchmark 客户端
 也必须设置 `SGLANG_SIMULATOR_OUTPUT_MODE=BLOCKING`，客户端才会按
 `request-rate` 实际等待。
+
+`BLOCKING` 会同时阻塞 forward 和可见的 L2→L1 load：关闭 overlap schedule
+时 sleep 全部有效 load 时延；开启 overlap schedule 时仅 sleep
+`max(load - 上一轮 inference, 0)`。这段实际 sleep 不再计入 CPU overhead，
+避免重复计时。`OFFLINE` 不 sleep，但逻辑时钟仍包含相同的可见 L2 load。
+
+`total_l2_blocking_wall_s` 是本次 BLOCKING 实际 sleep 的 L2 墙钟总和；
+OFFLINE 中固定为 `0`。
 
 ## 3. 启动方式一：服务化
 
@@ -418,6 +426,9 @@ bash scripts/test_bundle.sh
 | `result.iteration.jsonl` | 每 step batch composition、forward/load/backup 耗时 |
 | `server_args.json` | 本次实际服务配置 |
 | `hisim_config.json` | 本次实际硬件和 predictor 配置 |
+
+`result.metrics.json` 中的 `total_l2_load_s` 是逻辑 L2 load 总时延，
+`total_l2_blocking_wall_s` 是 BLOCKING 模式实际阻塞的墙钟时间。
 
 缓存命中分项互斥：
 

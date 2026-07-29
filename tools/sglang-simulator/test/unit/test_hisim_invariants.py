@@ -10,8 +10,12 @@ from sglang_simulator.simulation.sglang.mem_cache_allocator import (
     alloc_decode_cpu,
     alloc_extend_cpu,
 )
-from sglang_simulator.simulation.types import RequestStats
 from sglang_simulator.simulation.manager.config import ConfigManager
+from sglang_simulator.simulation.sglang.scheduler import (
+    block_on_l2_load,
+    effective_l2_load_delay,
+)
+from sglang_simulator.simulation.types import RequestStats, SimulationMode
 from sglang_simulator.simulation.utils import (
     calc_iteration_metrics,
     calc_kv_cache_tier_metrics,
@@ -147,6 +151,7 @@ def test_iteration_metrics_aggregate_latency_and_h2d_counters():
                 "forward_latency": 0.10,
                 "l2_load_latency": 0.02,
                 "cpu_overhead": 0.01,
+                "l2_blocking_wall_latency": 0.018,
                 "h2d_load_call_count": 1,
                 "h2d_load_segment_count": 2,
                 "h2d_load_units": 3,
@@ -168,6 +173,7 @@ def test_iteration_metrics_aggregate_latency_and_h2d_counters():
     assert metrics["total_forward_s"] == pytest.approx(0.30)
     assert metrics["total_l2_load_s"] == pytest.approx(0.02)
     assert metrics["total_cpu_s"] == pytest.approx(0.03)
+    assert metrics["total_l2_blocking_wall_s"] == pytest.approx(0.018)
     assert metrics["total_step_s"] == pytest.approx(0.35)
     assert metrics["avg_iter_latency_ms"] == pytest.approx(175)
     assert metrics["total_h2d_load_call_count"] == 5
@@ -190,6 +196,30 @@ def test_state_manager_pop_and_reset_do_not_leak_between_runs():
     assert StateManager.get_current_inference_dur() == pytest.approx(0.20)
     assert StateManager.pop_hicache_l2_load_dur() == pytest.approx(0.03)
     assert StateManager.pop_hicache_l2_load_dur() == 0
+
+
+def test_l2_load_visible_delay_matches_overlap_semantics():
+    assert effective_l2_load_delay(0.30, 0.20, False) == pytest.approx(0.30)
+    assert effective_l2_load_delay(0.30, 0.20, True) == pytest.approx(0.10)
+    assert effective_l2_load_delay(0.10, 0.20, True) == 0.0
+
+
+def test_blocking_l2_load_sleeps_but_offline_does_not(monkeypatch):
+    sleeps = []
+    clock = iter((10.0, 10.25))
+    monkeypatch.setattr(
+        "sglang_simulator.simulation.sglang.scheduler.time.sleep",
+        sleeps.append,
+    )
+    monkeypatch.setattr(
+        "sglang_simulator.simulation.sglang.scheduler.time.perf_counter",
+        lambda: next(clock),
+    )
+
+    assert block_on_l2_load(SimulationMode.BLOCKING, 0.20) == pytest.approx(0.25)
+    assert sleeps == [0.20]
+    assert block_on_l2_load(SimulationMode.OFFLINE, 0.20) == 0.0
+    assert sleeps == [0.20]
 
 
 def test_ignore_cpu_overhead_defaults_to_0714_semantics(monkeypatch, tmp_path):

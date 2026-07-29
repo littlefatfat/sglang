@@ -31,6 +31,25 @@ from sglang_simulator.utils.json import CustomJsonEncoder
 logger = get_logger("sgl_simulator")
 
 
+def effective_l2_load_delay(
+    load_duration: float,
+    last_inference_duration: float,
+    overlap_schedule: bool,
+) -> float:
+    if overlap_schedule:
+        return max(load_duration - last_inference_duration, 0.0)
+    return max(load_duration, 0.0)
+
+
+def block_on_l2_load(mode: SimulationMode, delay: float) -> float:
+    """Sleep for visible L2 load time and return actual blocked wall time."""
+    if mode != SimulationMode.BLOCKING or delay <= 0:
+        return 0.0
+    start = time.perf_counter()
+    time.sleep(delay)
+    return time.perf_counter() - start
+
+
 class C_SglangPrefillAdderHook(BaseHook):
     HOOK_CLASS_NAME = "PrefillAdder"
     HOOK_MODULE_NAME = "sglang.srt.managers.schedule_policy"
@@ -453,26 +472,33 @@ class C_SchedulerHook(BaseHook):
                 effective_hicache_l2_load_dur = (
                     hicache_l2_load_dur / HICACHE_LAYERWISE_LOAD_DIVISOR
                 )
+                visible_l2_load_dur = effective_l2_load_delay(
+                    effective_hicache_l2_load_dur,
+                    StateManager.get_last_inference_dur(),
+                    C_SchedulerHook.OVERLAP_SCHEDULE,
+                )
+                blocked_l2_wall_dur = block_on_l2_load(
+                    C_SchedulerHook.SIM_MODE,
+                    visible_l2_load_dur,
+                )
 
                 if C_SchedulerHook.OVERLAP_SCHEDULE:
-                    StateManager.step_global_clock(
-                        max(
-                            effective_hicache_l2_load_dur
-                            - StateManager.get_last_inference_dur(),
-                            0,
-                        )
-                    )
+                    StateManager.step_global_clock(visible_l2_load_dur)
                     StateManager.step_global_clock(current_inference_dur)
                 else:
-                    StateManager.step_global_clock(
-                        effective_hicache_l2_load_dur + current_inference_dur
-                    )
+                    StateManager.step_global_clock(visible_l2_load_dur)
+                    StateManager.step_global_clock(current_inference_dur)
                 # Step CPU overhead BEFORE recording latencies,
                 # so current iter's CPU time is reflected in current iter's TTFT.
                 now = time.time()
                 cpu_overhead = 0.0
                 if not ConfigManager.ignore_cpu_overhead():
-                    cpu_overhead = now - StateManager.get_last_real_time_ts()
+                    cpu_overhead = max(
+                        now
+                        - StateManager.get_last_real_time_ts()
+                        - blocked_l2_wall_dur,
+                        0.0,
+                    )
                     StateManager.step_global_clock(cpu_overhead)
                 StateManager.set_last_real_time_ts(now)
 
@@ -495,6 +521,7 @@ class C_SchedulerHook(BaseHook):
                         "requests": C_SchedulerHook.SIMULATION_BATCH.request_info(),
                         "forward_latency": current_inference_dur,
                         "l2_load_latency": hicache_l2_load_dur,
+                        "l2_blocking_wall_latency": blocked_l2_wall_dur,
                         **hicache_l2_load_stats,
                         "l2_backup_latency": hicache_l2_backup_dur,
                         "preprocess_latency": C_SchedulerHook.GET_NEW_BATCH_PREFILL_TIME_COST,
