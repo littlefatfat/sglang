@@ -320,10 +320,10 @@ service port: 31029
 结果目录：
 
 ```text
-/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v5
+/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v6
 ```
 
-`PASS` 文件存在。`acceptance.sh` 全部通过：25 个测试、服务化和同进程启动、
+`PASS` 文件存在。`acceptance.sh` 全部通过：29 个测试、服务化和同进程启动、
 OFFLINE/BLOCKING、random/ShareGPT/trace、replay/AIC/ML、Qwen3-8B、
 Qwen3-32B、GLM5 P 节点、DSv4Pro P 节点，以及纯 CPU allocator 和 GPU
 Triton paged allocator。AIC 以 `--no-deps` 安装并在 NumPy 2.3.5 下完成真实
@@ -333,6 +333,15 @@ Simulator 使用不带 `--no-deps` 的普通 editable 安装。pip 识别
 `sglang==0.5.16`、NumPy 2.3.5、scikit-learn 1.8.0 和 joblib 1.5.3 均已满足；
 安装前后四个版本完全一致。安装后的包元数据同时包含 SGLang 和三个
 simulator 直接依赖。
+
+机器学习 predictor 已统一为 `name=ml` 和固定18特征 ABI；运行时 `gbr`
+实现及现场训练入口已删除。HGBMono、GBR 或其他 sklearn-compatible 回归器
+统一通过离线 joblib bundle 接入。以下验证均通过：
+
+- 任意带 `predict()` 的回归器可经 `ml.py` 预测并应用 `latency_scale`。
+- 缺少 `model`/`features` 元数据，或特征名称、顺序不一致时加载直接失败。
+- 当前 DSv4Pro HGBMono bundle 实际加载18特征并完成预测。
+- 源码中不存在残留的运行时 `gbr` dispatcher 或实现引用。
 
 Replay 只替换 forward latency，0714 CPU overhead 语义保持开启。验收中的
 forward-only replay 为 3/3 exact match、0 fallback，且

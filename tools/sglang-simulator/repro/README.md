@@ -67,14 +67,14 @@ bash scripts/test_bundle.sh
 - `sglang_simulator` 从当前 worktree 导入。
 - `/nfs` 已挂载。
 - 四个模型目录、AIC database、ML 模型均显示 `OK`。
-- 当前测试结果为 repro `11 passed`，simulator `14 passed`。
+- 当前测试结果为 repro `11 passed`，simulator `18 passed`。
 
 ### 1.4 一键验收
 
 ```bash
 HISIM_PORT=31029 \
 HISIM_GPU_ID=7 \
-HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v5 \
+HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v6 \
   bash scripts/acceptance.sh
 ```
 
@@ -317,6 +317,13 @@ log1p_sum_past, log1p_sum_attn_flops,
 batch_size_x_sum_extend, max_past_minus_min_past,
 is_decode, is_prefill
 ```
+
+`ml` 是统一的机器学习 predictor 接口，不限定具体回归算法。HGBMono、GBR
+或其他模型均应离线训练并导出包含 `model`、`features` 的 joblib bundle；
+`model` 必须支持 sklearn 风格的 `predict([[18 features]])`，输出单位为秒。
+`features` 必须与上面的18项名称和顺序完全一致，否则加载时直接报错。运行时
+不接受缺少 `features` 元数据的裸模型，也不再读取训练 JSONL 或现场训练
+模型。
 
 Replay：
 

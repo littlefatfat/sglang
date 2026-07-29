@@ -11,7 +11,6 @@ hisim_config.json usage:
 """
 import math
 import os
-from typing import Optional
 
 import joblib
 
@@ -35,6 +34,10 @@ class MLTimePredictor(InferTimePredictor):
         batch_size × sum_extend, max_past - min_past,
         is_decode, is_prefill
     """
+
+    # This ordered list is the ABI between offline training and simulation.
+    # The concrete regressor algorithm is intentionally unrestricted as long
+    # as it exposes sklearn-compatible predict([[18 features]]) -> [seconds].
 
     FEATURE_NAMES = [
         "batch_size", "sum_extend", "max_extend", "min_extend",
@@ -67,19 +70,29 @@ class MLTimePredictor(InferTimePredictor):
             )
 
         bundle = joblib.load(database_path)
-        if isinstance(bundle, dict) and "model" in bundle:
-            self._model = bundle["model"]
-            saved_features = bundle.get("features", self.FEATURE_NAMES)
-        else:
-            self._model = bundle
-            saved_features = self.FEATURE_NAMES
-
-        if list(saved_features) != list(self.FEATURE_NAMES):
-            logger.warning(
-                "MLTimePredictor: feature list mismatch — saved=%d, expected=%d. "
-                "Using saved order; train_latency_model.py and this class must stay in sync.",
-                len(saved_features), len(self.FEATURE_NAMES),
+        if (
+            not isinstance(bundle, dict)
+            or "model" not in bundle
+            or "features" not in bundle
+        ):
+            raise ValueError(
+                "MLTimePredictor requires a joblib bundle containing both "
+                "'model' and ordered 'features' metadata"
             )
+        self._model = bundle["model"]
+        saved_features = list(bundle["features"])
+
+        if saved_features != self.FEATURE_NAMES:
+            raise ValueError(
+                "MLTimePredictor feature contract mismatch: "
+                f"saved={saved_features}, expected={self.FEATURE_NAMES}. "
+                "Retrain or export the model with the exact 18-feature ABI."
+            )
+        if not callable(getattr(self._model, "predict", None)):
+            raise TypeError(
+                "MLTimePredictor model must expose a callable predict() method"
+            )
+
         self._features = saved_features
         self._call_count = 0
         self._latency_scale = float(latency_scale)

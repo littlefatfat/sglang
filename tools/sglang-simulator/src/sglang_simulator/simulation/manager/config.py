@@ -215,21 +215,10 @@ class ConfigManager:
                 miss_strategy=predictor_config.get("miss_strategy", "zero"),
                 miss_knn_k=predictor_config.get("miss_knn_k", 3),
             )
-        elif predictor_config.get("name") == "gbr":
-            from sglang_simulator.time_predictor.gbr import GBRTimePredictor
-
-            return GBRTimePredictor(
-                model,
-                hw=hw,
-                config=sched_config,
-                database_path=predictor_config.get("database_path"),
-                model_path=predictor_config.get("model_path"),
-                decode_latency=predictor_config.get("decode_latency", 0.02),
-            )
         else:
             raise ValueError(
                 f"Unknown predictor name: {predictor_config.get('name')}. "
-                f"Supported: aiconfigurator, ml, replay, gbr"
+                f"Supported: aiconfigurator, ml, replay"
             )
 
     @classmethod
