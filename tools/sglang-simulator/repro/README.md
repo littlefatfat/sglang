@@ -3,6 +3,15 @@
 适用版本：官方镜像 `lmsysorg/sglang:v0.5.16`；分支
 `codex/hisim-v0.5.16-adaptation-0729`。
 
+进入容器后先固定官方 SGLang 的绝对导入路径：
+
+```bash
+export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
+```
+
+文档中的脚本、配置和 workload 均使用容器内完整绝对路径。设置上述环境变量后，
+所有命令都可从任意工作目录执行，包括存在旧 `sglang/` 目录的 `/workspace`。
+
 ## 1. 从官方镜像启动
 
 在 37 服务器执行：
@@ -56,9 +65,8 @@ editable 安装会复用官方镜像中已满足的版本，并自动补齐缺�
 ### 1.3 环境检查和单元测试
 
 ```bash
-cd /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro
-python3 scripts/check_environment.py
-bash scripts/test_bundle.sh
+python3 "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/scripts/check_environment.py"
+bash "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/scripts/test_bundle.sh"
 ```
 
 官方镜像预期：
@@ -67,7 +75,7 @@ bash scripts/test_bundle.sh
 - `sglang_simulator` 从当前 worktree 导入。
 - `/nfs` 已挂载。
 - 四个模型目录、AIC database、ML 模型均显示 `OK`。
-- 当前测试结果为 repro `10 passed`，simulator `18 passed`。
+- 当前测试结果为 repro `10 passed`，simulator `20 passed`。
 
 ### 1.4 一键验收
 
@@ -75,7 +83,7 @@ bash scripts/test_bundle.sh
 HISIM_PORT=31029 \
 HISIM_GPU_ID=7 \
 HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v6 \
-  bash scripts/acceptance.sh
+  bash "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/scripts/acceptance.sh"
 ```
 
 `HISIM_PORT` 可避开另一个并行验收中的 30000 端口；默认值仍为 30000。
@@ -92,13 +100,13 @@ request、batch composition、forward、缓存命中和 replay coverage 必须�
 ### 1.5 CPU/GPU 环境功能验证
 
 ```bash
-bash scripts/validate_cpu_gpu.sh
+bash "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/scripts/validate_cpu_gpu.sh"
 ```
 
 指定物理 GPU：
 
 ```bash
-HISIM_GPU_ID=1 bash scripts/validate_cpu_gpu.sh
+HISIM_GPU_ID=1 bash "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/scripts/validate_cpu_gpu.sh"
 ```
 
 该命令分别在 `CUDA_VISIBLE_DEVICES=""` 和 GPU 可见环境运行：
@@ -147,7 +155,7 @@ export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim/qwen3-8b-service
 
 python3 -m sglang_simulator.simulation.sglang.launch_server \
   --model-path /nfs/Qwen/Qwen3-8B \
-  --sim-config-path configs/qwen3-8b-h20/hisim.aic.json \
+  --sim-config-path /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/configs/qwen3-8b-h20/hisim.aic.json \
   --port 30000
 ```
 
@@ -181,7 +189,7 @@ python3 -m sglang.benchmark.serving \
   --base-url http://127.0.0.1:30000 \
   --model /nfs/Qwen/Qwen3-8B \
   --dataset-name random \
-  --dataset-path workloads/sharegpt.example.json \
+  --dataset-path /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/workloads/sharegpt.example.json \
   --request-rate 4 \
   --random-input-len 1024 \
   --random-output-len 128 \
@@ -200,7 +208,7 @@ python3 -m sglang.benchmark.serving \
   --base-url http://127.0.0.1:30000 \
   --model /nfs/Qwen/Qwen3-8B \
   --dataset-name sharegpt \
-  --dataset-path workloads/sharegpt.example.json \
+  --dataset-path /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/workloads/sharegpt.example.json \
   --request-rate 4 \
   --num-prompts 2 \
   --warmup-requests 0 \
@@ -217,7 +225,7 @@ python3 -m sglang.benchmark.serving \
   --base-url http://127.0.0.1:30000 \
   --model /nfs/Qwen/Qwen3-8B \
   --dataset-name autobench \
-  --dataset-path workloads/trace.example.jsonl \
+  --dataset-path /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/workloads/trace.autobench.example.jsonl \
   --num-prompts 3 \
   --warmup-requests 0 \
   --profile
@@ -241,20 +249,20 @@ OFFLINE 模式不增加 `--use-trace-timestamps`，客户端立即提交所有�
 Trace 回放：
 
 ```bash
-python3 scripts/run_inprocess.py \
-  --server-args configs/qwen3-8b-h20/server_args.json \
-  --hisim-config configs/qwen3-8b-h20/hisim.replay.json \
+python3 "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/scripts/run_inprocess.py" \
+  --server-args /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/configs/qwen3-8b-h20/server_args.json \
+  --hisim-config /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/configs/qwen3-8b-h20/hisim.replay.json \
   --workload trace \
-  --dataset workloads/trace.example.jsonl \
+  --dataset /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/workloads/trace.autobench.example.jsonl \
   --output-dir /tmp/hisim/qwen3-8b-inprocess
 ```
 
 Random request-rate：
 
 ```bash
-python3 scripts/run_inprocess.py \
-  --server-args configs/qwen3-8b-h20/server_args.json \
-  --hisim-config configs/qwen3-8b-h20/hisim.aic.json \
+python3 "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/scripts/run_inprocess.py" \
+  --server-args /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/configs/qwen3-8b-h20/server_args.json \
+  --hisim-config /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/configs/qwen3-8b-h20/hisim.aic.json \
   --workload random \
   --num-prompts 100 \
   --input-len 1024 \
@@ -266,11 +274,11 @@ python3 scripts/run_inprocess.py \
 ShareGPT request-rate：
 
 ```bash
-python3 scripts/run_inprocess.py \
-  --server-args configs/qwen3-8b-h20/server_args.json \
-  --hisim-config configs/qwen3-8b-h20/hisim.aic.json \
+python3 "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/scripts/run_inprocess.py" \
+  --server-args /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/configs/qwen3-8b-h20/server_args.json \
+  --hisim-config /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/configs/qwen3-8b-h20/hisim.aic.json \
   --workload sharegpt \
-  --dataset workloads/sharegpt.example.json \
+  --dataset /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/workloads/sharegpt.example.json \
   --num-prompts 2 \
   --request-rate 4 \
   --output-dir /tmp/hisim/qwen3-8b-sharegpt
@@ -376,7 +384,7 @@ Replay：
 ```json
 {
   "name": "replay",
-  "database_path": "workloads/replay_table.example.json",
+  "database_path": "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/workloads/replay_table.example.json",
   "miss_strategy": "zero",
   "miss_fallback_seconds": 0.0
 }
@@ -419,9 +427,9 @@ preprocess/postprocess、HiCache IO 和其余仿真建模保持不变。不要�
 ```bash
 export SGLANG_USE_CPU_ENGINE=1
 export CUDA_VISIBLE_DEVICES=""
-python3 scripts/run_inprocess.py \
-  --server-args configs/glm5-p-b300/server_args.json \
-  --hisim-config configs/glm5-p-b300/hisim.aic.json \
+python3 "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/scripts/run_inprocess.py" \
+  --server-args /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/configs/glm5-p-b300/server_args.json \
+  --hisim-config /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/configs/glm5-p-b300/hisim.aic.json \
   --workload trace \
   --dataset /host/bl_data_trace/multi_node_trace_combine_glm-5/<trace>.jsonl \
   --output-dir /tmp/hisim/glm5-p
@@ -433,9 +441,9 @@ python3 scripts/run_inprocess.py \
 export SGLANG_USE_CPU_ENGINE=1
 export CUDA_VISIBLE_DEVICES=""
 export SGLANG_ENABLE_UNIFIED_RADIX_TREE=1
-python3 scripts/run_inprocess.py \
-  --server-args configs/dsv4pro-p-gb300/server_args.json \
-  --hisim-config configs/dsv4pro-p-gb300/hisim.ml.json \
+python3 "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/scripts/run_inprocess.py" \
+  --server-args /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/configs/dsv4pro-p-gb300/server_args.json \
+  --hisim-config /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/configs/dsv4pro-p-gb300/hisim.ml.json \
   --workload trace \
   --dataset /host/bl_data_trace/multi_node_trace_combine_dpskv4pro/<trace>.jsonl \
   --output-dir /tmp/hisim/dsv4pro-p
@@ -444,14 +452,14 @@ python3 scripts/run_inprocess.py \
 ## 8. 验证
 
 ```bash
-python3 scripts/validate_result.py \
+python3 "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/scripts/validate_result.py" \
   /tmp/hisim/qwen3-8b-inprocess --expected-requests 3
 ```
 
 0714 与 v0.5.16 对比：
 
 ```bash
-python3 scripts/compare_results.py \
+python3 "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/scripts/compare_results.py" \
   --old <0714-result-dir> \
   --new <v0516-result-dir>
 ```
@@ -459,7 +467,7 @@ python3 scripts/compare_results.py \
 完整静态测试：
 
 ```bash
-bash scripts/test_bundle.sh
+bash "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/scripts/test_bundle.sh"
 ```
 
 通过条件：

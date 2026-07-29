@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from typing import Optional
 
 from sglang_simulator.simulation.manager.env import Envs
@@ -32,6 +33,25 @@ class ConfigManager:
             with open(Envs.config_path()) as f:
                 cls._raw_config = json.load(f)
         return cls._raw_config
+
+    @classmethod
+    def resolve_config_relative_path(cls, path: str | None) -> str | None:
+        """Resolve predictor assets without depending on the process cwd."""
+        if not path or Path(path).is_absolute():
+            return path
+
+        cwd_candidate = Path(path)
+        if cwd_candidate.exists():
+            return str(cwd_candidate.resolve())
+
+        config_path = Path(Envs.config_path()).resolve()
+        for parent in config_path.parents:
+            candidate = parent / path
+            if candidate.exists():
+                return str(candidate)
+
+        # Keep the original value so predictor-specific errors remain clear.
+        return path
 
     @classmethod
     def reset_config_cache(cls):
@@ -183,7 +203,9 @@ class ConfigManager:
                 model,
                 hw=hw,
                 config=sched_config,
-                database_path=predictor_config.get("database_path"),
+                database_path=cls.resolve_config_relative_path(
+                    predictor_config.get("database_path")
+                ),
                 database_mode=database_mode,
                 prefill_scale_factor=prefill_scale_factor,
                 decode_scale_factor=decode_scale_factor,
@@ -198,7 +220,9 @@ class ConfigManager:
                 model,
                 hw=hw,
                 config=sched_config,
-                database_path=predictor_config.get("database_path"),
+                database_path=cls.resolve_config_relative_path(
+                    predictor_config.get("database_path")
+                ),
                 latency_scale=predictor_config.get("latency_scale", 1.0),
             )
         elif predictor_config.get("name") == "replay":
@@ -208,7 +232,9 @@ class ConfigManager:
                 model,
                 hw=hw,
                 config=sched_config,
-                database_path=predictor_config.get("database_path"),
+                database_path=cls.resolve_config_relative_path(
+                    predictor_config.get("database_path")
+                ),
                 miss_fallback_seconds=predictor_config.get(
                     "miss_fallback_seconds", 0.0
                 ),

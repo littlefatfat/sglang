@@ -108,7 +108,7 @@ run_logged inprocess-replay \
   --hisim-config configs/qwen3-8b-h20/hisim.replay.json \
   --mode OFFLINE \
   --workload trace \
-  --dataset workloads/trace.example.jsonl \
+  --dataset workloads/trace.autobench.example.jsonl \
   --output-dir "${RESULT_ROOT}/inprocess-replay"
 validate inprocess-replay 3
 
@@ -143,7 +143,7 @@ run_logged qwen3-32b-aic \
   --hisim-config configs/qwen3-32b-fp8-h20/hisim.aic.json \
   --mode OFFLINE \
   --workload trace \
-  --dataset workloads/trace.example.jsonl \
+  --dataset workloads/trace.autobench.example.jsonl \
   --output-dir "${RESULT_ROOT}/qwen3-32b-aic"
 validate qwen3-32b-aic 3
 
@@ -153,7 +153,7 @@ run_logged glm5-p-aic \
   --hisim-config configs/glm5-p-b300/hisim.aic.json \
   --mode OFFLINE \
   --workload trace \
-  --dataset workloads/trace.example.jsonl \
+  --dataset workloads/trace.autobench.example.jsonl \
   --output-dir "${RESULT_ROOT}/glm5-p-aic"
 validate glm5-p-aic 3
 
@@ -164,7 +164,7 @@ run_logged dsv4pro-p-ml \
   --hisim-config configs/dsv4pro-p-gb300/hisim.ml.json \
   --mode OFFLINE \
   --workload trace \
-  --dataset workloads/trace.example.jsonl \
+  --dataset workloads/trace.autobench.example.jsonl \
   --output-dir "${RESULT_ROOT}/dsv4pro-p-ml"
 validate dsv4pro-p-ml 3
 
@@ -183,7 +183,7 @@ run_logged service-offline-trace \
   --base-url "http://127.0.0.1:${PORT}" \
   --model /nfs/Qwen/Qwen3-8B \
   --dataset-name autobench \
-  --dataset-path workloads/trace.example.jsonl \
+  --dataset-path workloads/trace.autobench.example.jsonl \
   --num-prompts 3 \
   --profile \
   --warmup-requests 0 \

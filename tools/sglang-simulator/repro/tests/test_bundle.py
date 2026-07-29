@@ -39,7 +39,7 @@ def test_trace_contract():
     from sglang.benchmark.datasets.autobench import sample_autobench_requests
 
     rows = sample_autobench_requests(
-        dataset_path=str(ROOT / "workloads/trace.example.jsonl"),
+        dataset_path=str(ROOT / "workloads/trace.autobench.example.jsonl"),
         num_requests=3,
         tokenizer=None,
     )
@@ -59,7 +59,7 @@ def test_inprocess_trace_uses_shared_trace_loader():
     dataset = load_inprocess_workload(
         name="trace",
         model_path="unused",
-        dataset_path=str(ROOT / "workloads/trace.example.jsonl"),
+        dataset_path=str(ROOT / "workloads/trace.autobench.example.jsonl"),
         num_prompts=3,
         input_len=1,
         output_len=1,

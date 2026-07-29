@@ -21,16 +21,18 @@ pip install .
 This example runs inference simulation using real-world trace data. You may also use synthetic random workloads (see below).
 
 #### Launch the Simulation Server
-Run the following command from `tools/sglang-simulator`:
+Set absolute paths once. The commands then work from any current directory:
 ```bash
+export HISIM_ROOT=/absolute/path/to/sglang/tools/sglang-simulator
+export MODEL_PATH=/absolute/path/to/Qwen3-32B-FP8
 export SGLANG_USE_CPU_ENGINE=1
 export CUDA_VISIBLE_DEVICES=""
 export SGLANG_SIMULATOR_OUTPUT_MODE=OFFLINE
 export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/sglang_simulator/qwen3-32b
 
 python3 -m sglang_simulator.simulation.sglang.launch_server \
-  --model-path /path/to/Qwen3-32B-FP8 \
-  --sim-config-path test/assets/config.json
+  --model-path "${MODEL_PATH}" \
+  --sim-config-path "${HISIM_ROOT}/test/assets/config.json"
 ```
 
 > **Notes**:
@@ -44,9 +46,9 @@ python3 -m sglang_simulator.simulation.sglang.launch_server \
   ```bash
   python3 -m sglang.benchmark.serving \
       --backend sglang \
-      --model /path/to/Qwen3-32B-FP8 \
+      --model "${MODEL_PATH}" \
       --dataset-name autobench \
-      --dataset-path repro/workloads/trace.example.jsonl \
+      --dataset-path "${HISIM_ROOT}/repro/workloads/trace.autobench.example.jsonl" \
       --num-prompts 3 \
       --warmup-requests 0 \
       --profile
@@ -58,7 +60,7 @@ python3 -m sglang_simulator.simulation.sglang.launch_server \
   export SGLANG_SIMULATOR_OUTPUT_MODE=BLOCKING
   python3 -m sglang.benchmark.serving \
       --warmup-requests 0 \
-      --model "Qwen/Qwen3-32B-FP8" \
+      --model "${MODEL_PATH}" \
       --dataset-name random \
       --request-rate 4 \
       --random-input-len 1024 \
@@ -178,7 +180,7 @@ The config file is a JSON file with three main sections:
 ```json
 {
   "name": "aiconfigurator",
-  "database_path": "path/to/aiconfigurator/data",
+  "database_path": "/absolute/path/to/aiconfigurator/data",
   "prefill_scale_factor": 1.02040816,
   "decode_scale_factor": 1.01010101
 }

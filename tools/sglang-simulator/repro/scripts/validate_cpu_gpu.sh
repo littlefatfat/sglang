@@ -40,7 +40,7 @@ run_trace_replay() {
     --device "${mode%%-*}" \
     --page-size 256 \
     --workload trace \
-    --dataset workloads/trace.example.jsonl \
+    --dataset workloads/trace.autobench.example.jsonl \
     --output-dir "${output}"
   python3 scripts/validate_result.py "${output}"
 }
