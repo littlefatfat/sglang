@@ -7,6 +7,7 @@ name = "sglang_simulator"
 dynamic = ["version"]
 description = "A simulation benchmark tool for sglang"
 dependencies = [
+    "sglang==0.5.16",
     "numpy",
     "scikit-learn",
     "joblib",

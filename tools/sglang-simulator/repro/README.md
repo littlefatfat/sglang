@@ -40,17 +40,18 @@ mount -t nfs4 33.254.38.20:/apsarapangu/disk2 /disk2_20
 
 ```bash
 export PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
-pip3 install scikit-learn==1.8.0 joblib==1.5.3
 pip3 install -e /host/aiconfigurator --no-deps
 pip3 install -e \
-  /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator \
-  --no-deps
+  /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator
 ```
 
 AIC 当前元数据要求 NumPy 1.26，但已验证其本 case 在镜像自带的 NumPy 2.3.5
 可正常预测。必须给 AIC 加 `--no-deps`，否则 pip 会降级 NumPy，与镜像内
-CUDA 13 CuPy 冲突。Simulator 已将 AIC 改为可选依赖，未使用的 `xgboost`
-不再是必装项。
+CUDA 13 CuPy 冲突。
+
+Simulator 直接依赖 `sglang==0.5.16`、NumPy、scikit-learn 和 joblib。普通
+editable 安装会复用官方镜像中已满足的版本，并自动补齐缺失依赖；不要增加
+`--upgrade`。AIC 是可选依赖，未使用的 `xgboost` 不再是必装项。
 
 ### 1.3 环境检查和单元测试
 
@@ -66,14 +67,14 @@ bash scripts/test_bundle.sh
 - `sglang_simulator` 从当前 worktree 导入。
 - `/nfs` 已挂载。
 - 四个模型目录、AIC database、ML 模型均显示 `OK`。
-- 当前测试结果为 repro `10 passed`，simulator `14 passed`。
+- 当前测试结果为 repro `11 passed`，simulator `14 passed`。
 
 ### 1.4 一键验收
 
 ```bash
 HISIM_PORT=31029 \
 HISIM_GPU_ID=7 \
-HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v4 \
+HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v5 \
   bash scripts/acceptance.sh
 ```
 

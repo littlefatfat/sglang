@@ -320,14 +320,19 @@ service port: 31029
 结果目录：
 
 ```text
-/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v4
+/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v5
 ```
 
-`PASS` 文件存在。`acceptance.sh` 全部通过：24 个测试、服务化和同进程启动、
+`PASS` 文件存在。`acceptance.sh` 全部通过：25 个测试、服务化和同进程启动、
 OFFLINE/BLOCKING、random/ShareGPT/trace、replay/AIC/ML、Qwen3-8B、
 Qwen3-32B、GLM5 P 节点、DSv4Pro P 节点，以及纯 CPU allocator 和 GPU
 Triton paged allocator。AIC 以 `--no-deps` 安装并在 NumPy 2.3.5 下完成真实
 预测调用；未降级官方镜像的 NumPy。
+
+Simulator 使用不带 `--no-deps` 的普通 editable 安装。pip 识别
+`sglang==0.5.16`、NumPy 2.3.5、scikit-learn 1.8.0 和 joblib 1.5.3 均已满足；
+安装前后四个版本完全一致。安装后的包元数据同时包含 SGLang 和三个
+simulator 直接依赖。
 
 Replay 只替换 forward latency，0714 CPU overhead 语义保持开启。验收中的
 forward-only replay 为 3/3 exact match、0 fallback，且

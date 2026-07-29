@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 
@@ -22,6 +23,17 @@ def load_script(name):
 def test_all_json_files_parse():
     for path in ROOT.rglob("*.json"):
         json.load(open(path, encoding="utf-8"))
+
+
+def test_package_declares_runtime_dependencies():
+    metadata = tomllib.loads((ROOT.parent / "pyproject.toml").read_text())
+    dependencies = set(metadata["project"]["dependencies"])
+    assert dependencies == {
+        "sglang==0.5.16",
+        "numpy",
+        "scikit-learn",
+        "joblib",
+    }
 
 
 def test_trace_contract():
