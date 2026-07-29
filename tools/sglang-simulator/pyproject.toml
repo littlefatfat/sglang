@@ -9,6 +9,10 @@ description = "A simulation benchmark tool for sglang"
 dependencies = [
     "numpy",
     "scikit-learn",
-    "xgboost",
+    "joblib",
+]
+
+[project.optional-dependencies]
+aic = [
     "aiconfigurator @ git+https://github.com/ai-dynamo/aiconfigurator.git"
 ]

@@ -12,6 +12,7 @@ def main() -> None:
     parser.add_argument("--mode", choices=["OFFLINE", "BLOCKING"], default="OFFLINE")
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     parser.add_argument("--page-size", type=int)
+    parser.add_argument("--port", type=int)
     parser.add_argument("--output-dir", required=True)
     args = parser.parse_args()
 
@@ -30,6 +31,8 @@ def main() -> None:
     from sglang.srt.utils import kill_process_tree
 
     server_args = build_server_args(args.server_args, args.device, args.page_size)
+    if args.port is not None:
+        server_args.port = args.port
     try:
         launch_server(
             server_args,

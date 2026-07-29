@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RESULT_ROOT="${HISIM_ACCEPTANCE_DIR:-/tmp/hisim-acceptance.$(date +%Y%m%d-%H%M%S)}"
 GPU_ID="${HISIM_GPU_ID:-0}"
+PORT="${HISIM_PORT:-30000}"
 SERVICE_PID=""
 
 mkdir -p "${RESULT_ROOT}"
@@ -49,8 +50,8 @@ start_service() {
   local server_args="$3"
   local hisim_config="$4"
 
-  if curl -fsS http://127.0.0.1:30000/v1/models >/dev/null 2>&1; then
-    echo "FAIL port 30000 is already occupied"
+  if curl -fsS "http://127.0.0.1:${PORT}/v1/models" >/dev/null 2>&1; then
+    echo "FAIL port ${PORT} is already occupied"
     exit 1
   fi
 
@@ -60,11 +61,12 @@ start_service() {
     --hisim-config "${hisim_config}" \
     --mode "${mode}" \
     --output-dir "${RESULT_ROOT}/${name}" \
+    --port "${PORT}" \
     >"${RESULT_ROOT}/service-${name}.log" 2>&1 &
   SERVICE_PID=$!
 
   for _ in $(seq 1 180); do
-    if curl -fsS http://127.0.0.1:30000/v1/models >/dev/null 2>&1 \
+    if curl -fsS "http://127.0.0.1:${PORT}/v1/models" >/dev/null 2>&1 \
       && grep -q "The server is fired up and ready to roll" \
         "${RESULT_ROOT}/service-${name}.log"; then
       echo "PASS service-${name}"
@@ -86,12 +88,12 @@ start_service() {
 stop_service() {
   cleanup_service
   for _ in $(seq 1 30); do
-    if ! curl -fsS http://127.0.0.1:30000/v1/models >/dev/null 2>&1; then
+    if ! curl -fsS "http://127.0.0.1:${PORT}/v1/models" >/dev/null 2>&1; then
       return
     fi
     sleep 0.5
   done
-  echo "FAIL service did not release port 30000"
+  echo "FAIL service did not release port ${PORT}"
   exit 1
 }
 
@@ -173,7 +175,7 @@ start_service \
 run_logged service-offline-trace \
   python3 scripts/send_trace.py \
   --trace workloads/trace.example.jsonl \
-  --base-url http://127.0.0.1:30000
+  --base-url "http://127.0.0.1:${PORT}"
 validate service-offline-replay 3
 stop_service
 
@@ -194,7 +196,7 @@ run_logged terminal-random \
   "${BENCH_ENV[@]}" \
   python3 -m sglang_simulator.simulation.bench_serving \
   --backend sglang \
-  --base-url http://127.0.0.1:30000 \
+  --base-url "http://127.0.0.1:${PORT}" \
   --model /nfs/Qwen/Qwen3-8B \
   --dataset-name random \
   --dataset-path workloads/sharegpt.example.json \
@@ -210,7 +212,7 @@ run_logged terminal-sharegpt \
   "${BENCH_ENV[@]}" \
   python3 -m sglang_simulator.simulation.bench_serving \
   --backend sglang \
-  --base-url http://127.0.0.1:30000 \
+  --base-url "http://127.0.0.1:${PORT}" \
   --model /nfs/Qwen/Qwen3-8B \
   --dataset-name sharegpt \
   --dataset-path workloads/sharegpt.example.json \

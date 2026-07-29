@@ -302,3 +302,29 @@ refactor-simplify 删除 wall-clock CPU overhead 不是本 case 总前缀命中�
 旧版到 v0.5.16 的 +0.726 pp 总前缀漂移仍需用多 trace、尤其高命中和多节点 case 定位。
 单 case 不能证明 DSv4Pro 全量误差已经合格。
 ```
+
+## 官方 v0.5.16 镜像全量验收
+
+日期：2026-07-29。环境：
+
+```text
+image: lmsysorg/sglang:v0.5.16
+sglang: 0.5.16 (/sgl-workspace/sglang/python)
+torch: 2.11.0+cu130
+numpy: 2.3.5
+GPU: NVIDIA A100-SXM4-80GB
+container: hisim-v0516-official-0729
+service port: 31029
+```
+
+结果目录：
+
+```text
+/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729
+```
+
+`PASS` 文件存在。`acceptance.sh` 全部通过：21 个测试、服务化和同进程启动、
+OFFLINE/BLOCKING、random/ShareGPT/trace、replay/AIC/ML、Qwen3-8B、
+Qwen3-32B、GLM5 P 节点、DSv4Pro P 节点，以及纯 CPU allocator 和 GPU
+Triton paged allocator。AIC 以 `--no-deps` 安装并在 NumPy 2.3.5 下完成真实
+预测调用；未降级官方镜像的 NumPy。

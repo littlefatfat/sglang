@@ -1,37 +1,90 @@
 # HiSim 最简复现
 
-适用版本：SGLang `v0.5.16` 基线；容器 `hisim-v0516-dev`。
+适用版本：官方镜像 `lmsysorg/sglang:v0.5.16`；分支
+`codex/hisim-v0.5.16-adaptation-0729`。
 
-## 1. 进入环境
+## 1. 从官方镜像启动
+
+在 37 服务器执行：
 
 ```bash
-ssh 33.255.171.37
-docker exec -it -w /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation \
-  hisim-v0516-dev bash
-cd tools/sglang-simulator/repro
-python3 scripts/check_environment.py
+docker run -dit \
+  --name hisim-v0516-official-0729 \
+  --privileged \
+  --gpus all \
+  --network host \
+  --ipc host \
+  -v /data2/maruiyan.mry:/host \
+  lmsysorg/sglang:v0.5.16 bash
 ```
 
-必须满足：
+`--privileged` 用于在容器内挂载 NFS；纯 CPU 且模型已由宿主机映射时可以去掉。
+不要在此容器内重新安装仓库根目录的 SGLang，镜像内
+`/sgl-workspace/sglang` 已是准确的 `0.5.16`。
 
-- `sglang` 从 `/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/python` 导入。
-- `/nfs` 已挂载。
-- `SGLANG_SIMULATOR_CONFIG_PATH` 指向本次配置。
-- 每次运行使用独立的 `SGLANG_SIMULATOR_OUTPUT_DIR` 和
-  `SGLANG_SIMULATOR_HICACHE_STORAGE_KEYS_PATH`。
-
-## 1.1 一键验收
+### 1.1 挂载模型
 
 ```bash
-HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/final-acceptance \
+docker exec -it hisim-v0516-official-0729 bash
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+  nfs-common curl git
+mkdir -p /nfs /disk2_20
+mount -t nfs4 33.254.37.150:/nfs/lvmpv/models /nfs
+mount -t nfs4 33.254.38.20:/apsarapangu/disk2 /disk2_20
+```
+
+容器重建后重新执行挂载命令。
+
+### 1.2 安装依赖和 simulator
+
+```bash
+export PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+pip3 install scikit-learn==1.8.0 joblib==1.5.3
+pip3 install -e /host/aiconfigurator --no-deps
+pip3 install -e \
+  /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator \
+  --no-deps
+```
+
+AIC 当前元数据要求 NumPy 1.26，但已验证其本 case 在镜像自带的 NumPy 2.3.5
+可正常预测。必须给 AIC 加 `--no-deps`，否则 pip 会降级 NumPy，与镜像内
+CUDA 13 CuPy 冲突。Simulator 已将 AIC 改为可选依赖，未使用的 `xgboost`
+不再是必装项。
+
+### 1.3 环境检查和单元测试
+
+```bash
+cd /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro
+python3 scripts/check_environment.py
+bash scripts/test_bundle.sh
+```
+
+官方镜像预期：
+
+- `sglang==0.5.16`，从 `/sgl-workspace/sglang/python` 导入。
+- `sglang_simulator` 从当前 worktree 导入。
+- `/nfs` 已挂载。
+- 四个模型目录、AIC database、ML 模型均显示 `OK`。
+- 当前测试结果为 repro `10 passed`，simulator `11 passed`。
+
+### 1.4 一键验收
+
+```bash
+HISIM_PORT=31029 \
+HISIM_GPU_ID=7 \
+HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729 \
   bash scripts/acceptance.sh
 ```
+
+`HISIM_PORT` 可避开另一个并行验收中的 30000 端口；默认值仍为 30000。
+每次运行必须使用新的输出目录。
 
 覆盖静态测试、两种启动方式、OFFLINE/BLOCKING、三种 workload、三种 predictor、
 四个模型配置、服务终端打流、CPU allocator 和 GPU Triton allocator。全部通过时
 最后一行是 `PASS all acceptance checks`。
 
-## 1.2 CPU/GPU 环境功能验证
+### 1.5 CPU/GPU 环境功能验证
 
 ```bash
 bash scripts/validate_cpu_gpu.sh
@@ -78,6 +131,7 @@ python3 scripts/start_service.py \
   --server-args configs/qwen3-8b-h20/server_args.json \
   --hisim-config configs/qwen3-8b-h20/hisim.aic.json \
   --mode OFFLINE \
+  --port 30000 \
   --output-dir /tmp/hisim/qwen3-8b-service
 ```
 
