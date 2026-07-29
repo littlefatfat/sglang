@@ -67,7 +67,7 @@ bash scripts/test_bundle.sh
 - `sglang_simulator` 从当前 worktree 导入。
 - `/nfs` 已挂载。
 - 四个模型目录、AIC database、ML 模型均显示 `OK`。
-- 当前测试结果为 repro `11 passed`，simulator `18 passed`。
+- 当前测试结果为 repro `13 passed`，simulator `18 passed`。
 
 ### 1.4 一键验收
 
@@ -196,10 +196,20 @@ python3 -m sglang_simulator.simulation.bench_serving \
 HiSim trace：
 
 ```bash
-python3 scripts/send_trace.py \
-  --trace workloads/trace.example.jsonl \
-  --base-url http://127.0.0.1:30000
+python3 -m sglang_simulator.simulation.bench_serving \
+  --backend sglang \
+  --base-url http://127.0.0.1:30000 \
+  --model /nfs/Qwen/Qwen3-8B \
+  --dataset-name hisim-trace \
+  --dataset-path workloads/trace.example.jsonl \
+  --num-prompts 3 \
+  --warmup-requests 0
 ```
+
+`hisim-trace` 直接复用 SGLang 官方 bench serving，只增加 HiSim JSONL
+解析和仿真 metadata。trace 时间戳默认按秒解释；毫秒 trace 增加
+`--hisim-timestamp-scale 1000`。`--trace-slowdown-factor 2` 表示以两倍
+时间间隔回放。`send_trace.py` 仅保留为不需要 benchmark 指标的底层调试入口。
 
 结果：
 

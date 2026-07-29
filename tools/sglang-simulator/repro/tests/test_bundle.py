@@ -37,11 +37,35 @@ def test_package_declares_runtime_dependencies():
 
 
 def test_trace_contract():
-    module = load_script("run_inprocess.py")
-    dataset = module.load_trace(ROOT / "workloads/trace.example.jsonl", 1.0)
-    assert len(dataset) == 3
-    assert dataset[0].custom_params["created_time"] == 0
-    assert dataset[2].custom_params["created_time"] == 0.2
+    from sglang_simulator.workload import load_hisim_trace_rows
+
+    rows = load_hisim_trace_rows(
+        ROOT / "workloads/trace.example.jsonl",
+        timestamp_scale=1.0,
+    )
+    assert len(rows) == 3
+    assert rows[0].timestamp == 0
+    assert rows[2].timestamp == 0.2
+    assert rows[0].prompt_len == len(rows[0].prompt)
+
+
+def test_inprocess_trace_uses_shared_trace_loader():
+    from sglang_simulator.workload import load_inprocess_workload
+
+    dataset = load_inprocess_workload(
+        name="trace",
+        model_path="unused",
+        dataset_path=str(ROOT / "workloads/trace.example.jsonl"),
+        num_prompts=3,
+        input_len=1,
+        output_len=1,
+        timestamp_scale=1.0,
+    )
+    assert [row.custom_params["created_time"] for row in dataset] == [
+        0,
+        0.1,
+        0.2,
+    ]
 
 
 def test_compare_batch_summary():
@@ -208,6 +232,31 @@ assert all(item["server_created_time"] > 0 for item in blocking)
         env=env,
     )
     assert result.returncode == 0
+
+
+def test_benchmark_client_accepts_hisim_trace_cli():
+    from sglang_simulator.simulation import bench_serving
+
+    argv = bench_serving.prepare_hisim_cli_args(
+        [
+            "bench",
+            "--dataset-name",
+            "hisim-trace",
+            "--dataset-path",
+            "trace.jsonl",
+            "--hisim-timestamp-scale",
+            "1000",
+            "--trace-slowdown-factor",
+            "2",
+        ]
+    )
+    assert argv == [
+        "bench",
+        "--dataset-name",
+        "custom",
+        "--dataset-path",
+        "trace.jsonl",
+    ]
 
 
 def test_acceptance_script_has_completion_sentinel():

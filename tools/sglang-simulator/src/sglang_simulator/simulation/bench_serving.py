@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import re
+import sys
 import time
 from dataclasses import fields
 from typing import AsyncGenerator, List, Optional
@@ -12,6 +13,73 @@ import numpy as np
 
 from sglang.benchmark import serving as bench_serving
 from sglang.benchmark.serving import DatasetRow
+from sglang_simulator.workload import load_hisim_trace_rows
+
+
+_HISIM_TRACE_REQUESTED = False
+_HISIM_TIMESTAMP_SCALE = 1.0
+_HISIM_TRACE_SLOWDOWN_FACTOR = 1.0
+
+
+def prepare_hisim_cli_args(argv: list[str]) -> list[str]:
+    """Consume HiSim-only flags before delegating to SGLang's official CLI."""
+    global _HISIM_TIMESTAMP_SCALE
+    global _HISIM_TRACE_REQUESTED
+    global _HISIM_TRACE_SLOWDOWN_FACTOR
+
+    _HISIM_TRACE_REQUESTED = False
+    _HISIM_TIMESTAMP_SCALE = 1.0
+    _HISIM_TRACE_SLOWDOWN_FACTOR = 1.0
+    rewritten = [argv[0]]
+    index = 1
+    while index < len(argv):
+        argument = argv[index]
+        if argument == "--dataset-name" and index + 1 < len(argv):
+            dataset_name = argv[index + 1]
+            rewritten.extend(
+                [argument, "custom" if dataset_name == "hisim-trace" else dataset_name]
+            )
+            _HISIM_TRACE_REQUESTED = dataset_name == "hisim-trace"
+            index += 2
+            continue
+        if argument.startswith("--dataset-name="):
+            dataset_name = argument.split("=", 1)[1]
+            rewritten.append(
+                "--dataset-name=custom"
+                if dataset_name == "hisim-trace"
+                else argument
+            )
+            _HISIM_TRACE_REQUESTED = dataset_name == "hisim-trace"
+            index += 1
+            continue
+        if argument in ("--hisim-timestamp-scale", "--trace-slowdown-factor"):
+            if index + 1 >= len(argv):
+                raise ValueError(f"{argument} requires a value")
+            value = float(argv[index + 1])
+            if value <= 0:
+                raise ValueError(f"{argument} must be greater than zero")
+            if argument == "--hisim-timestamp-scale":
+                _HISIM_TIMESTAMP_SCALE = value
+            else:
+                _HISIM_TRACE_SLOWDOWN_FACTOR = value
+            index += 2
+            continue
+        if argument.startswith(
+            ("--hisim-timestamp-scale=", "--trace-slowdown-factor=")
+        ):
+            option, raw_value = argument.split("=", 1)
+            value = float(raw_value)
+            if value <= 0:
+                raise ValueError(f"{option} must be greater than zero")
+            if option == "--hisim-timestamp-scale":
+                _HISIM_TIMESTAMP_SCALE = value
+            else:
+                _HISIM_TRACE_SLOWDOWN_FACTOR = value
+            index += 1
+            continue
+        rewritten.append(argument)
+        index += 1
+    return rewritten
 
 # Hijack aiohttp request sending to rewrite simulation metadata into a server-visible path.
 #
@@ -75,8 +143,11 @@ async def override_get_request(
     request_rate: float,
     use_trace_timestamps: bool = False,
     slowdown_factor: float = 1.0,
-    timestamp_scale_s: float = 1000,  # 1000: ms -> s
+    timestamp_scale_s: float = 1.0,
 ) -> AsyncGenerator[DatasetRow, None]:
+    if _HISIM_TRACE_REQUESTED:
+        use_trace_timestamps = True
+        slowdown_factor = _HISIM_TRACE_SLOWDOWN_FACTOR
 
     blocking = os.getenv("SGLANG_SIMULATOR_OUTPUT_MODE", "OFFLINE") == "BLOCKING"
     if use_trace_timestamps:
@@ -150,6 +221,17 @@ async def override_get_request(
 # benchmark-side metrics.
 
 original_calculate_metrics = bench_serving.calculate_metrics
+original_get_dataset = bench_serving.get_dataset
+
+
+def wrapped_get_dataset(args, tokenizer, model_id=None):
+    if args.dataset_name == "hisim-trace":
+        return load_hisim_trace_rows(
+            args.dataset_path,
+            num_requests=args.num_prompts,
+            timestamp_scale=_HISIM_TIMESTAMP_SCALE,
+        )
+    return original_get_dataset(args, tokenizer, model_id)
 
 
 def wrapped_calculate_metrics(*args, **simulation_metrics):
@@ -180,10 +262,14 @@ original_run_benchmark = bench_serving.run_benchmark
 def wrapped_run_benchmark(args_: argparse.Namespace):
     # The profile API has been hooked and is used as a trigger to start or stop the simulation.
     args_.profile = True
+    if _HISIM_TRACE_REQUESTED:
+        args_.dataset_name = "hisim-trace"
+        args_.use_trace_timestamps = True
     return original_run_benchmark(args_)
 
 
 bench_serving.get_request = override_get_request
+bench_serving.get_dataset = wrapped_get_dataset
 bench_serving.calculate_metrics = wrapped_calculate_metrics
 bench_serving.run_benchmark = wrapped_run_benchmark
 
@@ -191,4 +277,10 @@ install_aiohttp_json_hijack(hijack_url_regex=r"generate$")
 
 
 if __name__ == "__main__":
+    sys.argv[:] = prepare_hisim_cli_args(sys.argv)
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print(
+            "HiSim extension: --dataset-name hisim-trace "
+            "[--hisim-timestamp-scale N] [--trace-slowdown-factor N]\n"
+        )
     bench_serving.cli_main()

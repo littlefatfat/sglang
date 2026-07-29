@@ -173,9 +173,20 @@ start_service \
   configs/qwen3-8b-h20/server_args.json \
   configs/qwen3-8b-h20/hisim.replay.json
 run_logged service-offline-trace \
-  python3 scripts/send_trace.py \
-  --trace workloads/trace.example.jsonl \
-  --base-url "http://127.0.0.1:${PORT}"
+  env \
+  SGLANG_USE_CPU_ENGINE=1 \
+  CUDA_VISIBLE_DEVICES= \
+  SGLANG_SIMULATOR_OUTPUT_MODE=OFFLINE \
+  "SGLANG_SIMULATOR_OUTPUT_DIR=${RESULT_ROOT}/service-offline-replay" \
+  python3 -m sglang_simulator.simulation.bench_serving \
+  --backend sglang \
+  --base-url "http://127.0.0.1:${PORT}" \
+  --model /nfs/Qwen/Qwen3-8B \
+  --dataset-name hisim-trace \
+  --dataset-path workloads/trace.example.jsonl \
+  --num-prompts 3 \
+  --warmup-requests 0 \
+  --disable-tqdm
 validate service-offline-replay 3
 run_logged service-inprocess-parity \
   python3 scripts/validate_mode_parity.py \
