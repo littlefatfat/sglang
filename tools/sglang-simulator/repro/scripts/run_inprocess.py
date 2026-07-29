@@ -32,7 +32,7 @@ def main() -> None:
     parser.add_argument("--input-len", type=int, default=1024)
     parser.add_argument("--output-len", type=int, default=128)
     parser.add_argument("--request-rate", type=float, default=float("inf"))
-    parser.add_argument("--timestamp-scale", type=float, default=1.0)
+    parser.add_argument("--timestamp-scale", type=float, default=1000.0)
     parser.add_argument("--output-dir", required=True)
     args = parser.parse_args()
 

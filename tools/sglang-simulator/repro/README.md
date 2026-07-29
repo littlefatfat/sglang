@@ -67,7 +67,7 @@ bash scripts/test_bundle.sh
 - `sglang_simulator` 从当前 worktree 导入。
 - `/nfs` 已挂载。
 - 四个模型目录、AIC database、ML 模型均显示 `OK`。
-- 当前测试结果为 repro `13 passed`，simulator `18 passed`。
+- 当前测试结果为 repro `10 passed`，simulator `18 passed`。
 
 ### 1.4 一键验收
 
@@ -140,15 +140,23 @@ OFFLINE 中固定为 `0`。
 终端 A：
 
 ```bash
-python3 scripts/start_service.py \
-  --server-args configs/qwen3-8b-h20/server_args.json \
-  --hisim-config configs/qwen3-8b-h20/hisim.aic.json \
-  --mode OFFLINE \
-  --port 30000 \
-  --output-dir /tmp/hisim/qwen3-8b-service
+export SGLANG_USE_CPU_ENGINE=1
+export CUDA_VISIBLE_DEVICES=""
+export SGLANG_SIMULATOR_OUTPUT_MODE=OFFLINE
+export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim/qwen3-8b-service
+
+python3 -m sglang_simulator.simulation.sglang.launch_server \
+  --model-path /nfs/Qwen/Qwen3-8B \
+  --sim-config-path configs/qwen3-8b-h20/hisim.aic.json \
+  --port 30000
 ```
 
 服务地址：`http://127.0.0.1:30000`。
+
+模块入口默认使用 `load_format=dummy`，不会加载模型权重。设置
+`SGLANG_USE_CPU_ENGINE=1` 后会自动补齐 v0.5.16 的 CPU 安全参数；显式传入的
+SGLang CLI 参数优先。`scripts/start_service.py` 仅供一键验收脚本从
+`server_args.json` 展开参数，不是对外服务入口。
 
 ### 3.1 终端打 benchmark 流量
 
@@ -163,8 +171,12 @@ export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim/qwen3-8b-service
 
 Random：
 
+Random/ShareGPT 的服务化 request-rate 示例应把终端 A 和客户端环境都改为
+`BLOCKING`；官方客户端会按 request rate 实际发流。OFFLINE request-rate
+使用第 4 节的同进程入口。
+
 ```bash
-python3 -m sglang_simulator.simulation.bench_serving \
+python3 -m sglang.benchmark.serving \
   --backend sglang \
   --base-url http://127.0.0.1:30000 \
   --model /nfs/Qwen/Qwen3-8B \
@@ -174,7 +186,8 @@ python3 -m sglang_simulator.simulation.bench_serving \
   --random-input-len 1024 \
   --random-output-len 128 \
   --num-prompts 2 \
-  --warmup-requests 0
+  --warmup-requests 0 \
+  --profile
 ```
 
 SGLang v0.5.16 的 random sampler 需要 `--dataset-path` 作为本地 prompt 语料。
@@ -182,7 +195,7 @@ SGLang v0.5.16 的 random sampler 需要 `--dataset-path` 作为本地 prompt �
 ShareGPT：
 
 ```bash
-python3 -m sglang_simulator.simulation.bench_serving \
+python3 -m sglang.benchmark.serving \
   --backend sglang \
   --base-url http://127.0.0.1:30000 \
   --model /nfs/Qwen/Qwen3-8B \
@@ -190,26 +203,30 @@ python3 -m sglang_simulator.simulation.bench_serving \
   --dataset-path workloads/sharegpt.example.json \
   --request-rate 4 \
   --num-prompts 2 \
-  --warmup-requests 0
+  --warmup-requests 0 \
+  --profile
 ```
 
 HiSim trace：
 
+下面是 OFFLINE 服务化回放，保持客户端环境为 `OFFLINE`。
+
 ```bash
-python3 -m sglang_simulator.simulation.bench_serving \
+python3 -m sglang.benchmark.serving \
   --backend sglang \
   --base-url http://127.0.0.1:30000 \
   --model /nfs/Qwen/Qwen3-8B \
-  --dataset-name hisim-trace \
+  --dataset-name autobench \
   --dataset-path workloads/trace.example.jsonl \
   --num-prompts 3 \
-  --warmup-requests 0
+  --warmup-requests 0 \
+  --profile
 ```
 
-`hisim-trace` 直接复用 SGLang 官方 bench serving，只增加 HiSim JSONL
-解析和仿真 metadata。trace 时间戳默认按秒解释；毫秒 trace 增加
-`--hisim-timestamp-scale 1000`。`--trace-slowdown-factor 2` 表示以两倍
-时间间隔回放。`send_trace.py` 仅保留为不需要 benchmark 指标的底层调试入口。
+HiSim trace 直接使用官方 Autobench 格式，`timestamp` 固定为毫秒。
+OFFLINE 模式不增加 `--use-trace-timestamps`，客户端立即提交所有请求，
+服务端从 `simulation.created_time_ms` 恢复逻辑到达时间。BLOCKING 模式增加
+`--use-trace-timestamps`，由官方 `get_request()` 按 timestamp 实际等待。
 
 结果：
 
@@ -274,20 +291,39 @@ python3 scripts/run_inprocess.py \
 一行一个 JSON：
 
 ```json
-{"created_time": 1710000000.0, "input_ids": [1, 2, 3], "input_length": 3, "output_length": 1, "request_id": "r0"}
+{
+  "prompt": [1, 2, 3],
+  "prompt_len": 3,
+  "output_len": 1,
+  "timestamp": 200,
+  "extra_request_body": {
+    "sampling_params": {
+      "temperature": 0,
+      "max_new_tokens": 1,
+      "ignore_eos": true,
+      "custom_params": {
+        "simulation": {
+          "created_time_ms": 200,
+          "total_request": 100
+        }
+      }
+    }
+  }
+}
 ```
 
 必填字段：
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `created_time` 或 `timestamp` | number | 到达时间；整份 trace 使用同一单位 |
-| `input_ids` | `list[int]` | 输入 token |
-| `input_length` | int | 必须等于 `len(input_ids)` |
-| `output_length` | int | 输出 token 数；P 节点仿真通常设为 `1` |
+| `timestamp` | number | 相对到达时间，固定为毫秒 |
+| `prompt` | `list[int]` | 输入 token IDs |
+| `prompt_len` | int | 必须等于 `len(prompt)` |
+| `output_len` | int | 输出 token 数；P 节点仿真通常设为 `1` |
+| `extra_request_body` | object | 将相同的毫秒时间和总请求数传给 HiSim scheduler |
 
-脚本按最早时间归零。若输入 `timestamp` 为毫秒，增加
-`--timestamp-scale 1000`。
+同进程入口默认用 `timestamp / 1000` 恢复为仿真秒。服务化 OFFLINE 入口使用
+`simulation.created_time_ms / 1000`，两条路径语义一致。
 
 ## 6. 时间预测器
 

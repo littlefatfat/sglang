@@ -35,6 +35,38 @@ class SimulationArgs:
         return SimulationArgs(sim_config_path=ns.sim_config_path)
 
 
+def _has_cli_option(argv: list[str], option: str) -> bool:
+    return any(arg == option or arg.startswith(f"{option}=") for arg in argv)
+
+
+def apply_simulator_defaults(raw_args: argparse.Namespace, argv: list[str]) -> None:
+    """Avoid real model execution while preserving explicit SGLang options."""
+    if not _has_cli_option(argv, "--load-format"):
+        raw_args.load_format = "dummy"
+
+    if os.getenv("SGLANG_USE_CPU_ENGINE") != "1":
+        return
+
+    if not _has_cli_option(argv, "--device"):
+        raw_args.device = "cpu"
+    if not _has_cli_option(argv, "--attention-backend"):
+        raw_args.attention_backend = "torch_native"
+    if not _has_cli_option(argv, "--sampling-backend"):
+        raw_args.sampling_backend = "pytorch"
+    if not (
+        _has_cli_option(argv, "--cuda-graph-backend-decode")
+        or _has_cli_option(argv, "--cuda-graph-backend-prefill")
+        or _has_cli_option(argv, "--disable-cuda-graph")
+    ):
+        raw_args.disable_cuda_graph = True
+
+    # Some v0.5.16 model checks still query CUDA capability while constructing
+    # ServerArgs, before the simulator runner is spawned.
+    import torch
+
+    torch.cuda.get_device_capability = lambda *_args, **_kwargs: (10, 0)
+
+
 # Ref: https://github.com/sgl-project/sglang/blob/v0.5.6.post2/python/sglang/launch_server.py
 if __name__ == "__main__":
     from sglang.srt.entrypoints.http_server import launch_server
@@ -49,7 +81,9 @@ if __name__ == "__main__":
     g = parser.add_argument_group("simulation")
     SimulationArgs.add_cli_args(g)
 
-    raw_args = parser.parse_args(sys.argv[1:])
+    argv = sys.argv[1:]
+    raw_args = parser.parse_args(argv)
+    apply_simulator_defaults(raw_args, argv)
     server_args = ServerArgs.from_cli_args(raw_args)
     simulation_args = SimulationArgs.from_cli_args(raw_args)
 

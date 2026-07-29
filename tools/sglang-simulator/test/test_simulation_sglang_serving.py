@@ -4,41 +4,39 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import requests
 
-os.environ["SGLANG_SIMULATOR_CONFIG_PATH"] = (
-    os.path.dirname(__file__) + "/assets/config.json"
-)
+ASSETS = Path(__file__).parent / "assets"
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ["SGLANG_USE_CPU_ENGINE"] = "1"
+os.environ["SGLANG_SIMULATOR_OUTPUT_MODE"] = "OFFLINE"
 
 
 class SGLangServingRunner:
     def __init__(self, server_args: dict):
-
         cmd = [sys.executable, "-m", "sglang_simulator.simulation.sglang.launch_server"]
 
-        for k, v in server_args.items():
-            flag = "--" + k.replace("_", "-")
-            if v is True:
+        for key, value in server_args.items():
+            flag = "--" + key.replace("_", "-")
+            if value is True:
                 cmd.append(flag)
-            elif v is False:
-                pass
-            else:
-                cmd.extend([flag, str(v)])
+            elif value is not False:
+                cmd.extend([flag, str(value)])
 
         self.server_proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
 
-        dur = 0
-        while dur < 120:
+        duration = 0
+        while duration < 120:
             try:
-                r = requests.get(url="http://localhost:30000")
-                if r.status_code < 500:
+                response = requests.get(url="http://localhost:30000")
+                if response.status_code < 500:
                     return
             except Exception:
                 pass
             time.sleep(1)
-            dur += 1
+            duration += 1
         raise RuntimeError("Fail to start llm server.")
 
     def benchmark(self):
@@ -47,24 +45,27 @@ class SGLangServingRunner:
         cmd = [
             sys.executable,
             "-m",
-            "sglang_simulator.simulation.bench_serving",
-            "--warmup-request=0",
+            "sglang.benchmark.serving",
             "--backend=sglang",
-            "--dataset-name=sharegpt",
-            "--num-prompts=10",
+            "--base-url=http://127.0.0.1:30000",
+            "--warmup-requests=0",
+            f"--model={ASSETS / 'qwen3-8b'}",
+            "--dataset-name=autobench",
+            f"--dataset-path={ASSETS / 'autobench.jsonl'}",
+            "--num-prompts=3",
+            "--disable-tqdm",
+            "--profile",
             f"--output-file={output_file}",
         ]
-        subprocess.run(cmd)
+        subprocess.run(cmd, check=True)
 
-        with open(output_file) as f:
-            metrics = json.load(f)
+        with open(output_file) as file:
+            metrics = json.load(file)
 
-        with open(output_file, "w") as f:
-            # clear data
+        with open(output_file, "w"):
             pass
 
         metrics["time_cost"] = time.time() - start
-
         return metrics
 
     def flush_cache(self):
@@ -85,18 +86,21 @@ class SGLangServingRunner:
 def test_benchmark():
     runner = SGLangServingRunner(
         server_args={
-            "model_path": "Qwen/Qwen3-8B",
-            "device": "cpu",
-            "enable_hierarchical_cache": True,
-            "hicache_storage_backend": "file",
-            "page_size": 16,
+            "model_path": ASSETS / "qwen3-8b",
+            "sim_config_path": ASSETS / "config.json",
+            "skip_tokenizer_init": True,
+            "max_total_tokens": 8192,
+            "max_running_requests": 8,
+            "disable_overlap_schedule": True,
         }
     )
 
-    metrics = runner.benchmark()
+    try:
+        metrics = runner.benchmark()
+    finally:
+        runner.shutdown()
 
-    runner.shutdown()
-    assert metrics["completed"] == 10
+    assert metrics["completed"] == 3
 
 
 if __name__ == "__main__":

@@ -21,33 +21,50 @@ pip install .
 This example runs inference simulation using real-world trace data. You may also use synthetic random workloads (see below).
 
 #### Launch the Simulation Server
-Run the following command from the project root directory (the folder containing this `README.md`):
+Run the following command from `tools/sglang-simulator`:
 ```bash
+export SGLANG_USE_CPU_ENGINE=1
+export CUDA_VISIBLE_DEVICES=""
+export SGLANG_SIMULATOR_OUTPUT_MODE=OFFLINE
+export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/sglang_simulator/qwen3-32b
+
 python3 -m sglang_simulator.simulation.sglang.launch_server \
-  --model-path "Qwen/Qwen3-32B-FP8" \
+  --model-path /path/to/Qwen3-32B-FP8 \
   --sim-config-path test/assets/config.json
 ```
 
 > **Notes**:
 > - Use `--sim-config-path` to specify the simulation configuration file, which is equivalent to the system environment variable `SGLANG_SIMULATOR_CONFIG_PATH`.
-> - In pure CPU simulation environments, you may need to install the CPU-compatible version of vLLM (a dependency of SGLang CPU mode) and set the following environment variables:
->   ```bash
->   export SGLANG_USE_CPU_ENGINE=1
->   export FLASHINFER_DISABLE_VERSION_CHECK=1
->   ```
+> - The simulator entry point defaults to `load_format=dummy`; it does not load model weights. The model path must still contain model config and tokenizer files.
+> - With `SGLANG_USE_CPU_ENGINE=1`, the entry point selects the v0.5.16 CPU-safe device, attention/sampling backends and disables CUDA graph. Explicit SGLang CLI options take precedence.
 > - The provided [config file](test/assets/config.json) is for testing. Adjust hardware bandwidth and other parameters to match your actual deployment scenario for higher fidelity.
 
 #### Run the Simulation Benchmark
-- **Synthetic random workload**:
+- **Autobench trace replay**:
   ```bash
-  python3 -m sglang_simulator.simulation.bench_serving \
+  python3 -m sglang.benchmark.serving \
+      --backend sglang \
+      --model /path/to/Qwen3-32B-FP8 \
+      --dataset-name autobench \
+      --dataset-path repro/workloads/trace.example.jsonl \
+      --num-prompts 3 \
+      --warmup-requests 0 \
+      --profile
+  ```
+
+- **Synthetic random workload**:
+  Start the simulator in `BLOCKING` mode for service-side request-rate traffic.
+  ```bash
+  export SGLANG_SIMULATOR_OUTPUT_MODE=BLOCKING
+  python3 -m sglang.benchmark.serving \
       --warmup-requests 0 \
       --model "Qwen/Qwen3-32B-FP8" \
       --dataset-name random \
       --request-rate 4 \
       --random-input-len 1024 \
       --random-output-len 1024 \
-      --num-prompts 10
+      --num-prompts 10 \
+      --profile
   ```
 
 You have now completed an inference simulation using framework interception.

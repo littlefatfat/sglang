@@ -1464,7 +1464,11 @@ async def benchmark(
         )
         pbar_total *= args.mooncake_num_rounds
     else:
-        request_generator = get_request(input_requests, request_rate)
+        request_generator = get_request(
+            input_requests,
+            request_rate,
+            use_trace_timestamps=use_trace_timestamps,
+        )
 
     # Prepare LoRA request distribution parameters
     if lora_request_distribution == "distinct":

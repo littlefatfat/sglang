@@ -178,13 +178,14 @@ run_logged service-offline-trace \
   CUDA_VISIBLE_DEVICES= \
   SGLANG_SIMULATOR_OUTPUT_MODE=OFFLINE \
   "SGLANG_SIMULATOR_OUTPUT_DIR=${RESULT_ROOT}/service-offline-replay" \
-  python3 -m sglang_simulator.simulation.bench_serving \
+  python3 -m sglang.benchmark.serving \
   --backend sglang \
   --base-url "http://127.0.0.1:${PORT}" \
   --model /nfs/Qwen/Qwen3-8B \
-  --dataset-name hisim-trace \
+  --dataset-name autobench \
   --dataset-path workloads/trace.example.jsonl \
   --num-prompts 3 \
+  --profile \
   --warmup-requests 0 \
   --disable-tqdm
 validate service-offline-replay 3
@@ -209,7 +210,7 @@ BENCH_ENV=(
 
 run_logged terminal-random \
   "${BENCH_ENV[@]}" \
-  python3 -m sglang_simulator.simulation.bench_serving \
+  python3 -m sglang.benchmark.serving \
   --backend sglang \
   --base-url "http://127.0.0.1:${PORT}" \
   --model /nfs/Qwen/Qwen3-8B \
@@ -220,12 +221,13 @@ run_logged terminal-random \
   --random-output-len 1 \
   --num-prompts 2 \
   --warmup-requests 0 \
+  --profile \
   --disable-tqdm
 validate service-blocking-aic 2
 
 run_logged terminal-sharegpt \
   "${BENCH_ENV[@]}" \
-  python3 -m sglang_simulator.simulation.bench_serving \
+  python3 -m sglang.benchmark.serving \
   --backend sglang \
   --base-url "http://127.0.0.1:${PORT}" \
   --model /nfs/Qwen/Qwen3-8B \
@@ -234,6 +236,7 @@ run_logged terminal-sharegpt \
   --request-rate 4 \
   --num-prompts 2 \
   --warmup-requests 0 \
+  --profile \
   --disable-tqdm
 validate service-blocking-aic 2
 stop_service

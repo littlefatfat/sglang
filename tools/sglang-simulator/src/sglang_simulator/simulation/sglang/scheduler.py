@@ -95,6 +95,13 @@ class ReqDispatcher:
             tuple[float, int, Any]
         ] = []  # tuple(created time, salt, request)
         self.offline_recv_all_requests = False
+        self.profile_active = False
+
+    @staticmethod
+    def simulation_created_time_s(simulation_args: dict) -> float:
+        if "created_time_ms" in simulation_args:
+            return simulation_args["created_time_ms"] / 1000.0
+        return simulation_args["created_time"]
 
     def has_next(self) -> bool:
         return len(self.future_queue) > 0
@@ -144,7 +151,8 @@ class ReqDispatcher:
 
                 self.future_queue.append(
                     (
-                        sim_params.get("queue_start") or sim_params["created_time"],
+                        sim_params.get("queue_start")
+                        or self.simulation_created_time_s(sim_params),
                         time.time_ns(),  # The request is not comparable, so add the salt to avoid comparison.
                         req,
                     )
@@ -194,24 +202,24 @@ class ReqDispatcher:
                     )
                 # The warm-up request might not include any simulation arguments.
                 if simulation_args is None:
-                    continue
+                    if self.mode != SimulationMode.BLOCKING or not self.profile_active:
+                        continue
+                    simulation_args = {}
                 req_stats = request_stats_manager.get_req_stats(req.rid)
                 req_stats.rid = req.rid
                 req_stats.input_length = len(req.input_ids)
                 req_stats.output_length = req.sampling_params.max_new_tokens
 
                 if self.mode == SimulationMode.BLOCKING:
-                    if "server_created_time" not in simulation_args:
-                        logger.warning(
-                            "The request's creation time is missing, which may cause the TTFT to be inaccurate."
-                        )
                     req_stats.created_time = simulation_args.get(
                         "server_created_time", now
                     )
                     req_stats.last_event_time = req_stats.created_time
                     req_stats.queue_start = now
                 elif self.mode == SimulationMode.OFFLINE:
-                    req_stats.created_time = simulation_args["created_time"]
+                    req_stats.created_time = self.simulation_created_time_s(
+                        simulation_args
+                    )
                     req_stats.last_event_time = req_stats.created_time
                     # Align with the real queue start timestamp if queue_start is not None. For debugging only.
                     queue_start = simulation_args.get("queue_start")
@@ -540,6 +548,7 @@ class C_SchedulerHook(BaseHook):
             return ret
 
         def override_profile(req, *args, **kwargs):
+            is_start_profile = req.req_type.name == "START_PROFILE"
             stats: list[RequestStats] = []
             for item in request_stats_manager.get_all_req_stats():
                 if item.rid is not None and item.input_length > 0:
@@ -604,6 +613,7 @@ class C_SchedulerHook(BaseHook):
             C_SchedulerHook.ITERATION_STATS.clear()
             C_SchedulerHook.TOTAL_PREDICTOR_TIME_COST = 0
             C_SchedulerHook.REQ_DISPATCHER.reset()
+            C_SchedulerHook.REQ_DISPATCHER.profile_active = is_start_profile
             C_SchedulerHook.INFERENCE_PREDICTOR.reset_metrics()
 
             ProfileReqOutput = getattr(
