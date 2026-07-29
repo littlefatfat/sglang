@@ -177,6 +177,10 @@ run_logged service-offline-trace \
   --trace workloads/trace.example.jsonl \
   --base-url "http://127.0.0.1:${PORT}"
 validate service-offline-replay 3
+run_logged service-inprocess-parity \
+  python3 scripts/validate_mode_parity.py \
+  --inprocess "${RESULT_ROOT}/inprocess-replay" \
+  --service "${RESULT_ROOT}/service-offline-replay"
 stop_service
 
 start_service \

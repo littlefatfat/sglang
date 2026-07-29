@@ -320,7 +320,7 @@ service port: 31029
 结果目录：
 
 ```text
-/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v2
+/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v3
 ```
 
 `PASS` 文件存在。`acceptance.sh` 全部通过：24 个测试、服务化和同进程启动、
@@ -332,3 +332,22 @@ Triton paged allocator。AIC 以 `--no-deps` 安装并在 NumPy 2.3.5 下完成�
 Replay 只替换 forward latency，0714 CPU overhead 语义保持开启。验收中的
 forward-only replay 为 3/3 exact match、0 fallback，且
 `total_cpu_s=0.00518`，确认 CPU overhead 未被关闭。
+
+### 服务化与 Python 同进程一致性
+
+同一 Qwen3-8B 配置、同一三请求 trace、同一 forward-only replay table：
+
+| 项目 | 结果 |
+|---|---|
+| request/token 数 | exact |
+| batch composition | 3/3 exact |
+| forward latency | exact |
+| prefix/L1/L2 命中率 | exact |
+| replay coverage | 3 exact / 0 miss |
+| 同进程 CPU overhead | 5.194 ms |
+| 服务化 CPU overhead | 4.608 ms |
+| Mean TTFT | 8.732 ms / 8.537 ms |
+
+两种启动方式的仿真语义一致。时间不做 bitwise exact：0714 语义使用本机
+wall-clock CPU overhead，进程形态会带来亚毫秒差异。本次所有时间指标差异均
+小于逐步 CPU overhead 差值总和 `0.603 ms`。

@@ -73,7 +73,7 @@ bash scripts/test_bundle.sh
 ```bash
 HISIM_PORT=31029 \
 HISIM_GPU_ID=7 \
-HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729 \
+HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v3 \
   bash scripts/acceptance.sh
 ```
 
@@ -83,6 +83,10 @@ HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-
 覆盖静态测试、两种启动方式、OFFLINE/BLOCKING、三种 workload、三种 predictor、
 四个模型配置、服务终端打流、CPU allocator 和 GPU Triton allocator。全部通过时
 最后一行是 `PASS all acceptance checks`。
+
+验收还会用同一配置、trace 和 replay table 比较服务化与 Python 同进程模式：
+request、batch composition、forward、缓存命中和 replay coverage 必须完全一致；
+时间差必须不超过两次运行实际记录的逐步 CPU overhead 差值。
 
 ### 1.5 CPU/GPU 环境功能验证
 
