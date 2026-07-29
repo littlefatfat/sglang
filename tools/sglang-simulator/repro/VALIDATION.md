@@ -320,11 +320,15 @@ service port: 31029
 结果目录：
 
 ```text
-/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729
+/data2/maruiyan.mry/hisim-sglang/validation/v0516/official-image-0729-final-v2
 ```
 
-`PASS` 文件存在。`acceptance.sh` 全部通过：21 个测试、服务化和同进程启动、
+`PASS` 文件存在。`acceptance.sh` 全部通过：24 个测试、服务化和同进程启动、
 OFFLINE/BLOCKING、random/ShareGPT/trace、replay/AIC/ML、Qwen3-8B、
 Qwen3-32B、GLM5 P 节点、DSv4Pro P 节点，以及纯 CPU allocator 和 GPU
 Triton paged allocator。AIC 以 `--no-deps` 安装并在 NumPy 2.3.5 下完成真实
 预测调用；未降级官方镜像的 NumPy。
+
+Replay 只替换 forward latency，0714 CPU overhead 语义保持开启。验收中的
+forward-only replay 为 3/3 exact match、0 fallback，且
+`total_cpu_s=0.00518`，确认 CPU overhead 未被关闭。

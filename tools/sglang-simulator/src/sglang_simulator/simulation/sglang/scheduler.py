@@ -548,6 +548,9 @@ class C_SchedulerHook(BaseHook):
                 metrics.update(
                     calc_iteration_metrics(C_SchedulerHook.ITERATION_STATS, metrics)
                 )
+                metrics.update(
+                    C_SchedulerHook.INFERENCE_PREDICTOR.get_metrics()
+                )
 
                 try:
                     with open(f"{output_dir}/metrics.json", "w") as f:
@@ -574,6 +577,7 @@ class C_SchedulerHook(BaseHook):
             C_SchedulerHook.ITERATION_STATS.clear()
             C_SchedulerHook.TOTAL_PREDICTOR_TIME_COST = 0
             C_SchedulerHook.REQ_DISPATCHER.reset()
+            C_SchedulerHook.INFERENCE_PREDICTOR.reset_metrics()
 
             ProfileReqOutput = getattr(
                 importlib.import_module("sglang.srt.managers.io_struct"),

@@ -87,3 +87,11 @@ class InferTimePredictor(ABC):
     def predict_infer_time(self, batch: ScheduleBatch) -> float:
         # Return the inference time in seconds. Return a negative value if an exception occurs (e.g., out of memory).
         pass
+
+    def get_metrics(self) -> dict:
+        """Return predictor-specific metrics for the current profile interval."""
+        return {}
+
+    def reset_metrics(self) -> None:
+        """Reset predictor-specific metrics after a profile flush."""
+        return None

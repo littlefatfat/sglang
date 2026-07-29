@@ -66,7 +66,7 @@ bash scripts/test_bundle.sh
 - `sglang_simulator` 从当前 worktree 导入。
 - `/nfs` 已挂载。
 - 四个模型目录、AIC database、ML 模型均显示 `OK`。
-- 当前测试结果为 repro `10 passed`，simulator `11 passed`。
+- 当前测试结果为 repro `10 passed`，simulator `14 passed`。
 
 ### 1.4 一键验收
 
@@ -316,8 +316,20 @@ Replay：
 }
 ```
 
+基线采集时：
+
+```bash
+export SGL_HOOK_FETCH_BATCH_INFO=1
+```
+
+Replay table 只使用同步测量的 `iter_latency` 替换 forward；CPU
+preprocess/postprocess、HiCache IO 和其余仿真建模保持不变。不要使用
+`replay_tables_pre_post`，也不要将 `preprocess_latency`、
+`postprocess_latency` 折叠进 replay 值。
+
 `zero` miss 会低估耗时；`knn` 会引入插值误差。回归时必须报告 exact/miss
-比例。
+比例。`result.metrics.json` 会输出 `replay_exact_match_steps`、
+`replay_miss_steps`、两种 fallback step 数和 `replay_fallback_rate`。
 
 ## 7. 模型、硬件、部署
 

@@ -169,3 +169,21 @@ class ReplayTimePredictor(InferTimePredictor):
             return self._miss_fallback
         self._hits += 1
         return float(v)
+
+    def get_metrics(self) -> dict:
+        total = self._hits + self._misses
+        return {
+            "replay_exact_match_steps": self._hits,
+            "replay_miss_steps": self._misses,
+            "replay_zero_fallback_steps": (
+                self._misses if self._miss_strategy == "zero" else 0
+            ),
+            "replay_knn_fallback_steps": (
+                self._misses if self._miss_strategy == "knn" else 0
+            ),
+            "replay_fallback_rate": self._misses / total if total else 0.0,
+        }
+
+    def reset_metrics(self) -> None:
+        self._hits = 0
+        self._misses = 0
