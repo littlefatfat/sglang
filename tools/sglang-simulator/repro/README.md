@@ -1,5 +1,8 @@
 # HiSim 最简复现
 
+按 CPU/GPU、Random/ShareGPT/Autobench、AIC/ML/Replay 和
+OFFLINE/BLOCKING 逐条验收，见 [CASES.md](CASES.md)。
+
 适用版本：官方镜像 `lmsysorg/sglang:v0.5.16`；分支
 `codex/hisim-v0.5.16-adaptation-0729`。
 
