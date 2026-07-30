@@ -44,3 +44,10 @@ def test_request_metrics_preserve_prefix_and_tier_hit_ratios():
     assert metrics["kv_cache_storage_hit_ratio"] == pytest.approx(0.025)
     assert metrics["mean_ttft_ms"] == pytest.approx(150)
     assert metrics["mean_queue_ms"] == pytest.approx(15)
+    assert metrics["p95_ttft_ms"] >= metrics["p90_ttft_ms"]
+    assert metrics["p99_ttft_ms"] >= metrics["p95_ttft_ms"]
+    assert metrics["p95_e2e_latency_ms"] >= metrics["p90_e2e_latency_ms"]
+    assert metrics["p99_e2e_latency_ms"] >= metrics["p95_e2e_latency_ms"]
+    assert metrics["concurrency"] == pytest.approx((0.12 + 0.20) / 0.50)
+    assert metrics["max_output_tokens_per_s"] == 3
+    assert metrics["max_concurrent_requests"] == 2

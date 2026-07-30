@@ -1,7 +1,12 @@
 import asyncio
+import argparse
+import io
+import json
+from dataclasses import fields
 
 import aiohttp
 
+from sglang.benchmark import serving
 from sglang.benchmark.datasets.common import DatasetRow
 from sglang_simulator.simulation import bench_serving
 
@@ -122,3 +127,71 @@ def test_simulator_cli_argument_is_removed_before_official_parser():
     )
     assert mode == "blocking"
     assert remaining == ["--backend", "sglang", "--num-prompts", "2"]
+
+
+def _client_metrics(value=123):
+    return serving.BenchmarkMetrics(
+        **{field.name: value for field in fields(serving.BenchmarkMetrics)}
+    )
+
+
+def test_missing_backend_fields_are_not_filled_from_offline_client(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "metrics.json").write_text(
+        json.dumps({"completed": 50, "p90_ttft_ms": 400})
+    )
+    monkeypatch.setenv("SGLANG_SIMULATOR_OUTPUT_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        bench_serving,
+        "_ORIGINAL_CALCULATE_METRICS",
+        lambda *args, **kwargs: (_client_metrics(), []),
+    )
+
+    metrics, _ = bench_serving.simulator_calculate_metrics()
+
+    assert metrics.completed == 50
+    assert metrics.p90_ttft_ms == 400
+    assert metrics.p95_ttft_ms == -1
+    assert metrics.max_concurrent_requests == -1
+    assert metrics.total_input_text == -1
+    assert metrics.total_input_vision == -1
+    assert metrics.total_output_retokenized == -1
+
+
+def test_duration_stream_uses_simulated_duration(tmp_path, monkeypatch):
+    (tmp_path / "metrics.json").write_text(json.dumps({"duration": 10.7124}))
+    monkeypatch.setenv("SGLANG_SIMULATOR_OUTPUT_DIR", str(tmp_path))
+    target = io.StringIO()
+    stream = bench_serving._DurationReplacingStream(target)
+
+    stream.write("Benchmark duration (s):                  1.41      ")
+
+    assert target.getvalue() == "Benchmark duration (s):                  10.71     "
+
+
+def test_run_benchmark_replaces_return_and_output_file_duration(
+    tmp_path, monkeypatch, capsys
+):
+    output_file = tmp_path / "client.jsonl"
+    (tmp_path / "metrics.json").write_text(json.dumps({"duration": 10.7124}))
+    monkeypatch.setenv("SGLANG_SIMULATOR_OUTPUT_DIR", str(tmp_path))
+
+    def fake_run(_):
+        print("Benchmark duration (s):                  1.41      ")
+        output_file.write_text(json.dumps({"duration": 1.41, "completed": 50}) + "\n")
+        return {"duration": 1.41, "completed": 50}
+
+    monkeypatch.setattr(bench_serving, "_ORIGINAL_RUN_BENCHMARK", fake_run)
+    result = bench_serving.simulator_run_benchmark(
+        argparse.Namespace(
+            backend="sglang",
+            dataset_name="sharegpt",
+            use_trace_timestamps=False,
+            output_file=str(output_file),
+        )
+    )
+
+    assert "10.71" in capsys.readouterr().out
+    assert result["duration"] == 10.7124
+    assert json.loads(output_file.read_text())["duration"] == 10.7124

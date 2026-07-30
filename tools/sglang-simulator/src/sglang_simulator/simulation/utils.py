@@ -314,6 +314,8 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
     total_host_hit_tokens = 0
     total_storage_hit_tokens = 0
     queue_durs = []
+    output_token_timestamps = []
+    concurrency_events = []
     for req in requests:
         if not req.is_complete():
             continue
@@ -325,6 +327,12 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
             tpots.append(np.mean(req.gen_token_latencies[1:]))
         itls.extend(req.gen_token_latencies[1:])
         e2e_latencies.append(sum(req.gen_token_latencies))
+        token_timestamp = req.created_time
+        for token_latency in req.gen_token_latencies:
+            token_timestamp += token_latency
+            output_token_timestamps.append(token_timestamp)
+        concurrency_events.append((req.created_time, 1))
+        concurrency_events.append((req.last_event_time, -1))
         total_dur_s = max(total_dur_s, req.last_event_time)
         total_input += req.input_length
         total_output += req.output_length
@@ -396,13 +404,35 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
         kb_per_token=kb_per_token,
     )
 
+    max_output_tokens_per_s = 0.0
+    if output_token_timestamps:
+        first_created_time = min(
+            req.created_time for req in requests if req.is_complete()
+        )
+        num_buckets = int(max(output_token_timestamps) - first_created_time) + 1
+        output_tokens_per_s = np.zeros(max(num_buckets, 1))
+        for timestamp in output_token_timestamps:
+            bucket = int(timestamp - first_created_time)
+            output_tokens_per_s[bucket] += 1
+        max_output_tokens_per_s = float(np.max(output_tokens_per_s))
+
+    max_concurrent_requests = 0
+    current_concurrent_requests = 0
+    # Treat request intervals as [created_time, last_event_time): requests that
+    # finish exactly when another arrives are not simultaneously active.
+    for _, delta in sorted(concurrency_events, key=lambda event: (event[0], event[1])):
+        current_concurrent_requests += delta
+        max_concurrent_requests = max(
+            max_concurrent_requests, current_concurrent_requests
+        )
+
     return {
         "num_requests": len(requests),
         "completed": completed,
         "total_input": total_input,
         "total_output": total_output,
         "duration": total_dur_s,
-        "request_throughput": len(requests) / total_dur_s,
+        "request_throughput": completed / total_dur_s,
         "input_throughput": total_input / total_dur_s,
         "output_throughput": total_output / total_dur_s,
         "total_throughput": (total_input + total_output) / total_dur_s,
@@ -442,29 +472,32 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
         ),
         "mean_ttft_ms": np.mean(ttfts or 0) * 1000,
         "median_ttft_ms": np.median(ttfts or 0) * 1000,
-        # "std_ttft_ms": np.std(ttfts or 0) * 1000,
+        "std_ttft_ms": np.std(ttfts or 0) * 1000,
         "p90_ttft_ms": np.percentile(ttfts or 0, 90) * 1000,
-        # "p95_ttft_ms": np.percentile(ttfts or 0, 95) * 1000,
-        # "p99_ttft_ms": np.percentile(ttfts or 0, 99) * 1000,
+        "p95_ttft_ms": np.percentile(ttfts or 0, 95) * 1000,
+        "p99_ttft_ms": np.percentile(ttfts or 0, 99) * 1000,
         "mean_queue_ms": np.mean(queue_durs or 0) * 1000,
         "mean_tpot_ms": np.mean(tpots or 0) * 1000,
         "median_tpot_ms": np.median(tpots or 0) * 1000,
-        # "std_tpot_ms": np.std(tpots or 0) * 1000,
+        "std_tpot_ms": np.std(tpots or 0) * 1000,
         "p90_tpot_ms": np.percentile(tpots or 0, 90) * 1000,
-        # "p95_tpot_ms": np.percentile(tpots or 0, 95) * 1000,
-        # "p99_tpot_ms": np.percentile(tpots or 0, 99) * 1000,
+        "p95_tpot_ms": np.percentile(tpots or 0, 95) * 1000,
+        "p99_tpot_ms": np.percentile(tpots or 0, 99) * 1000,
         "mean_itl_ms": np.mean(itls or 0) * 1000,
         "median_itl_ms": np.median(itls or 0) * 1000,
-        # "std_itl_ms": np.std(itls or 0) * 1000,
+        "std_itl_ms": np.std(itls or 0) * 1000,
         "p90_itl_ms": np.percentile(itls or 0, 90) * 1000,
-        # "p95_itl_ms": np.percentile(itls or 0, 95) * 1000,
-        # "p99_itl_ms": np.percentile(itls or 0, 99) * 1000,
+        "p95_itl_ms": np.percentile(itls or 0, 95) * 1000,
+        "p99_itl_ms": np.percentile(itls or 0, 99) * 1000,
         "max_itl_ms": np.max(itls or 0) * 1000,
-        "mean_e2e_latency_ms": np.mean(e2e_latencies) * 1000,
-        "median_e2e_latency_ms": np.median(e2e_latencies) * 1000,
-        # "std_e2e_latency_ms": np.std(e2e_latencies) * 1000,
+        "mean_e2e_latency_ms": np.mean(e2e_latencies or 0) * 1000,
+        "median_e2e_latency_ms": np.median(e2e_latencies or 0) * 1000,
+        "std_e2e_latency_ms": np.std(e2e_latencies or 0) * 1000,
         "p90_e2e_latency_ms": np.percentile(e2e_latencies or 0, 90) * 1000,
-        # "p95_e2e_latency_ms": np.percentile(e2e_latencies or 0, 95) * 1000,
-        # "p99_e2e_latency_ms": np.percentile(e2e_latencies or 0, 99) * 1000,
+        "p95_e2e_latency_ms": np.percentile(e2e_latencies or 0, 95) * 1000,
+        "p99_e2e_latency_ms": np.percentile(e2e_latencies or 0, 99) * 1000,
+        "concurrency": np.sum(e2e_latencies or 0) / total_dur_s,
+        "max_output_tokens_per_s": max_output_tokens_per_s,
+        "max_concurrent_requests": max_concurrent_requests,
         "time_cost": -1,  # Updated by external benchmark caller
     }

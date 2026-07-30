@@ -12,6 +12,7 @@ User datasets must not contain simulator metadata.
 """
 
 import argparse
+import contextlib
 import json
 import os
 import re
@@ -32,6 +33,39 @@ _ORIGINAL_GET_REQUEST = serving.get_request
 _ORIGINAL_RUN_BENCHMARK = serving.run_benchmark
 _SIMULATOR_MODE = "offline"
 _USE_TRACE_TIMESTAMPS = False
+
+
+def _metrics_path() -> Path:
+    output_dir = Path(
+        os.getenv("SGLANG_SIMULATOR_OUTPUT_DIR", "/tmp/sglang_simulator/output")
+    )
+    return output_dir / "metrics.json"
+
+
+def _load_backend_metrics() -> Optional[dict]:
+    metrics_path = _metrics_path()
+    if not metrics_path.is_file():
+        return None
+    return json.loads(metrics_path.read_text(encoding="utf-8"))
+
+
+class _DurationReplacingStream:
+    """Keep SGLang's output format but print the simulated duration."""
+
+    def __init__(self, target):
+        self.target = target
+
+    def write(self, text):
+        if "Benchmark duration (s):" in text:
+            metrics = _load_backend_metrics()
+            if metrics is not None and "duration" in metrics:
+                text = "{:<40} {:<10.2f}".format(
+                    "Benchmark duration (s):", metrics["duration"]
+                )
+        return self.target.write(text)
+
+    def flush(self):
+        return self.target.flush()
 
 
 def _set_simulation_metadata(
@@ -124,26 +158,37 @@ def install_aiohttp_json_hijack(
 
 
 def simulator_calculate_metrics(*args, **kwargs):
-    """Prefer simulator metrics, with official client metrics as a fallback."""
+    """Use simulator metrics; mark unsupported client-only fields with -1."""
     client_metrics, output_lens = _ORIGINAL_CALCULATE_METRICS(*args, **kwargs)
-    output_dir = Path(
-        os.getenv("SGLANG_SIMULATOR_OUTPUT_DIR", "/tmp/sglang_simulator/output")
-    )
-    metrics_path = output_dir / "metrics.json"
-    if not metrics_path.is_file():
+    backend_metrics = _load_backend_metrics()
+    if backend_metrics is None:
         print(
-            f"Simulator metrics are not available at {metrics_path}; "
+            f"Simulator metrics are not available at {_metrics_path()}; "
             "showing client-side benchmark metrics."
         )
         return client_metrics, output_lens
 
-    backend_metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
     metric_names = {field.name for field in fields(serving.BenchmarkMetrics)}
-    values = {
-        name: backend_metrics.get(name, getattr(client_metrics, name))
-        for name in metric_names
-    }
+    values = {name: backend_metrics.get(name, -1) for name in metric_names}
     return serving.BenchmarkMetrics(**values), output_lens
+
+
+def _replace_output_file_duration(
+    args: argparse.Namespace, simulated_duration: float
+) -> None:
+    output_file = getattr(args, "output_file", None)
+    if not output_file:
+        return
+    path = Path(output_file)
+    if not path.is_file():
+        return
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines:
+        return
+    last_result = json.loads(lines[-1])
+    last_result["duration"] = simulated_duration
+    lines[-1] = json.dumps(last_result)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def simulator_run_benchmark(args: argparse.Namespace):
@@ -159,7 +204,16 @@ def simulator_run_benchmark(args: argparse.Namespace):
         )
     _USE_TRACE_TIMESTAMPS = getattr(args, "use_trace_timestamps", False)
     args.profile = True
-    return _ORIGINAL_RUN_BENCHMARK(args)
+    with contextlib.redirect_stdout(_DurationReplacingStream(sys.stdout)):
+        result = _ORIGINAL_RUN_BENCHMARK(args)
+
+    backend_metrics = _load_backend_metrics()
+    if backend_metrics is not None and "duration" in backend_metrics:
+        simulated_duration = backend_metrics["duration"]
+        if isinstance(result, dict):
+            result["duration"] = simulated_duration
+        _replace_output_file_duration(args, simulated_duration)
+    return result
 
 
 def _extract_simulator_args(argv: list[str]) -> tuple[str, list[str]]:
