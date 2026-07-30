@@ -53,6 +53,16 @@ def test_ml_predictor_is_model_algorithm_agnostic(tmp_path):
     assert predictor.predict_infer_time(ScheduleBatch()) == 0.0
 
 
+def test_ml_predictor_expands_environment_variable(monkeypatch, tmp_path):
+    bundle_path = tmp_path / "regressor.pkl"
+    dump_bundle(bundle_path)
+    monkeypatch.setenv("SGLANG_SIMULATOR_TEST_MODEL_PATH", str(bundle_path))
+
+    predictor = load_predictor("${SGLANG_SIMULATOR_TEST_MODEL_PATH}")
+
+    assert predictor._features == MLTimePredictor.FEATURE_NAMES
+
+
 def test_ml_predictor_rejects_feature_order_mismatch(tmp_path):
     bundle_path = tmp_path / "wrong-order.pkl"
     features = list(MLTimePredictor.FEATURE_NAMES)

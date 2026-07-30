@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert a HiSim timestamp trace into SGLang Autobench JSONL."""
+"""Convert a SGLang Simulator timestamp trace into SGLang Autobench JSONL."""
 
 import argparse
 import json

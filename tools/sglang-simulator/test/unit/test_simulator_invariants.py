@@ -277,11 +277,11 @@ def test_blocking_l2_load_sleeps_but_offline_does_not(monkeypatch):
 
 @pytest.mark.parametrize("mode", [SimulationMode.OFFLINE, SimulationMode.BLOCKING])
 def test_simulation_mode_log_message(mode):
-    assert simulation_mode_log_message(mode) == f"HiSim simulation mode: {mode.value}"
+    assert simulation_mode_log_message(mode) == f"SGLang Simulator simulation mode: {mode.value}"
 
 
 def test_ignore_cpu_overhead_defaults_to_0714_semantics(monkeypatch, tmp_path):
-    config_path = tmp_path / "hisim.json"
+    config_path = tmp_path / "simulator.json"
     config_path.write_text(json.dumps({"scheduler": {}}))
     monkeypatch.setenv("SGLANG_SIMULATOR_CONFIG_PATH", str(config_path))
     ConfigManager.reset_config_cache()
@@ -290,7 +290,7 @@ def test_ignore_cpu_overhead_defaults_to_0714_semantics(monkeypatch, tmp_path):
 
 
 def test_ignore_cpu_overhead_can_be_enabled_and_cache_is_reset(monkeypatch, tmp_path):
-    config_path = tmp_path / "hisim.json"
+    config_path = tmp_path / "simulator.json"
     config_path.write_text(json.dumps({"scheduler": {"ignore_cpu_overhead": True}}))
     monkeypatch.setenv("SGLANG_SIMULATOR_CONFIG_PATH", str(config_path))
     ConfigManager.reset_config_cache()

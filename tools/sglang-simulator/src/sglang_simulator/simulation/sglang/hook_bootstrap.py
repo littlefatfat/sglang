@@ -1,4 +1,4 @@
-"""Install HiSim hooks in the parent and spawned SGLang worker processes."""
+"""Install SGLang Simulator hooks in the parent and spawned SGLang worker processes."""
 
 import sglang_simulator.hook as sglang_simulator_hook
 from sglang_simulator.simulation.sglang import (
@@ -51,7 +51,7 @@ def install_simulator_hooks() -> None:
 
 
 def run_simulator_scheduler_process(*args, **kwargs):
-    """Spawn-safe scheduler entry point which installs HiSim before SGLang imports."""
+    """Spawn-safe scheduler entry point which installs SGLang Simulator before SGLang imports."""
     install_simulator_hooks()
 
     # Import only after hook installation. SGLang v0.5.16 forces the spawn start
@@ -62,7 +62,7 @@ def run_simulator_scheduler_process(*args, **kwargs):
 
 
 def run_simulator_detokenizer_process(*args, **kwargs):
-    """Spawn-safe detokenizer entry point which installs HiSim before imports."""
+    """Spawn-safe detokenizer entry point which installs SGLang Simulator before imports."""
     install_simulator_hooks()
 
     # Detokenizer imports schedule_batch and memory_pool on v0.5.16. Installing

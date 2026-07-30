@@ -22,7 +22,7 @@ def persist(runner, metrics: dict, output: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--server-args", required=True)
-    parser.add_argument("--hisim-config", required=True)
+    parser.add_argument("--sim-config", required=True)
     parser.add_argument("--mode", choices=["OFFLINE", "BLOCKING"], default="OFFLINE")
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     parser.add_argument("--page-size", type=int)
@@ -37,7 +37,7 @@ def main() -> None:
     args = parser.parse_args()
 
     output = configure_environment(
-        args.hisim_config, args.output_dir, args.mode, args.device
+        args.sim_config, args.output_dir, args.mode, args.device
     )
 
     from sglang_simulator.simulation.benchmark import BenchmarkConfig
@@ -68,7 +68,7 @@ def main() -> None:
         )
 
     shutil.copy(args.server_args, output / "server_args.json")
-    shutil.copy(args.hisim_config, output / "hisim_config.json")
+    shutil.copy(args.sim_config, output / "sim_config.json")
     runner = SGLangBenchmarkRunner(server_args)
     try:
         metrics = runner.benchmark(benchmark, dataset)

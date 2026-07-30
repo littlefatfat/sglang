@@ -4,7 +4,7 @@ from sglang_simulator.simulation.manager.env import Envs
 
 def test_predictor_path_resolves_from_sim_config_ancestor(tmp_path, monkeypatch):
     repro = tmp_path / "repro"
-    config_path = repro / "configs" / "model" / "hisim.json"
+    config_path = repro / "configs" / "model" / "simulator.json"
     predictor_path = repro / "workloads" / "replay.json"
     config_path.parent.mkdir(parents=True)
     predictor_path.parent.mkdir(parents=True)

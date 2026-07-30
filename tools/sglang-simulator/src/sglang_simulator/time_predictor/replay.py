@@ -16,7 +16,7 @@ Build the table from real bench's TP0.schedule_batch.jsonl:
     json.dump({k:statistics.median(v) for k,v in lookup.items()}, open('/path/to/replay_table.json','w'))
     "
 
-hisim_config.json usage:
+sim_config.json usage:
     "predictor": {
         "name": "replay",
         "database_path": "/path/to/replay_table.json",

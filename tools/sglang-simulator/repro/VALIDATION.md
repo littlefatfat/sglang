@@ -12,7 +12,8 @@ simulation mode: OFFLINE
 检查：
 
 ```bash
-python3 scripts/check_environment.py
+SGLANG_SIMULATOR_ML_MODEL_PATH=/absolute/path/to/latency_model.pkl \
+  python3 scripts/check_environment.py
 ```
 
 ## v0.5.16 最终功能验收
@@ -20,7 +21,7 @@ python3 scripts/check_environment.py
 日期：2026-07-29。命令：
 
 ```bash
-HISIM_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/final-acceptance \
+SGLANG_SIMULATOR_ACCEPTANCE_DIR=/data2/maruiyan.mry/hisim-sglang/validation/v0516/final-acceptance \
   bash scripts/acceptance.sh
 ```
 
@@ -97,13 +98,13 @@ CPU/GPU 均执行 page_size=256 的同一份 replay trace
 
 GPU-visible replay 使用 `device=cuda`，因此
 `PagedTokenToKVPoolAllocator.alloc_extend/alloc_decode` 实际调用 v0.5.16
-的 Triton kernel。`load_format=dummy` 不加载模型权重，HiSim hook 不执行
+的 Triton kernel。`load_format=dummy` 不加载模型权重，SGLang Simulator hook 不执行
 真实模型 forward；step 时间仍来自所选 predictor。
 
 2026-07-28 实跑：
 
 ```text
-container: hisim-v0516-dev
+container: sglang-simulator-v0516-dev
 CPU-only: torch.cuda.is_available() == false
 GPU-visible: NVIDIA A100-SXM4-80GB
 CPU spawned runner: pass (cold -> L1 -> L2 -> L3)
@@ -189,7 +190,7 @@ AIC 必须单独报告 SOL/SILICON 与实测误差
 日期：2026-07-28。Case：
 
 ```text
-hisim-num-node-1-glm-5-blksz-256-bucket-85-128-cnt-1816-time-60min-pod-9p7wt_slowdown_factor_1
+sglang-simulator-num-node-1-glm-5-blksz-256-bucket-85-128-cnt-1816-time-60min-pod-9p7wt_slowdown_factor_1
 1816 requests / 60 minutes / GLM-5.1-FP8 / B300 / TP8 replay config
 ```
 
@@ -233,7 +234,7 @@ OFFLINE 准确度回归不能继续依赖本机实测 CPU overhead。
 日期：2026-07-28。Case：
 
 ```text
-hisim-num-node-1-dpskv4pro-blksz-256-bucket-0-32-cnt-2304-time-60min-pod-7s07-008
+sglang-simulator-num-node-1-dpskv4pro-blksz-256-bucket-0-32-cnt-2304-time-60min-pod-7s07-008
 2304 requests / 60 minutes / DeepSeek-V4-Pro / B300 / TP4 / L2 / HGB monotonic
 real mean TTFT: 411.171455 ms
 ```
@@ -313,7 +314,7 @@ sglang: 0.5.16 (/sgl-workspace/sglang/python)
 torch: 2.11.0+cu130
 numpy: 2.3.5
 GPU: NVIDIA A100-SXM4-80GB
-container: hisim-v0516-official-0729
+container: sglang-simulator-v0516-official-0729
 service port: 31029
 ```
 

@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RESULT_ROOT="${HISIM_ACCEPTANCE_DIR:-/tmp/hisim-acceptance.$(date +%Y%m%d-%H%M%S)}"
-GPU_ID="${HISIM_GPU_ID:-0}"
-PORT="${HISIM_PORT:-30000}"
+RESULT_ROOT="${SGLANG_SIMULATOR_ACCEPTANCE_DIR:-/tmp/sglang-simulator-acceptance.$(date +%Y%m%d-%H%M%S)}"
+GPU_ID="${SGLANG_SIMULATOR_GPU_ID:-0}"
+PORT="${SGLANG_SIMULATOR_PORT:-30000}"
 SERVICE_PID=""
 
 mkdir -p "${RESULT_ROOT}"
@@ -48,7 +48,7 @@ start_service() {
   local name="$1"
   local mode="$2"
   local server_args="$3"
-  local hisim_config="$4"
+  local sim_config="$4"
 
   if curl -fsS "http://127.0.0.1:${PORT}/v1/models" >/dev/null 2>&1; then
     echo "FAIL port ${PORT} is already occupied"
@@ -58,7 +58,7 @@ start_service() {
   echo "RUN  service-${name}"
   python3 scripts/start_service.py \
     --server-args "${server_args}" \
-    --hisim-config "${hisim_config}" \
+    --sim-config "${sim_config}" \
     --mode "${mode}" \
     --output-dir "${RESULT_ROOT}/${name}" \
     --port "${PORT}" \
@@ -97,7 +97,7 @@ stop_service() {
   exit 1
 }
 
-echo "HiSim v0.5.16 acceptance"
+echo "SGLang Simulator v0.5.16 acceptance"
 echo "results=${RESULT_ROOT}"
 
 run_logged static bash scripts/test_bundle.sh
@@ -105,7 +105,7 @@ run_logged static bash scripts/test_bundle.sh
 run_logged inprocess-replay \
   python3 scripts/run_inprocess.py \
   --server-args configs/qwen3-8b-h20/server_args.json \
-  --hisim-config configs/qwen3-8b-h20/hisim.replay.json \
+  --sim-config configs/qwen3-8b-h20/simulator.replay.json \
   --mode OFFLINE \
   --workload trace \
   --dataset workloads/trace.autobench.example.jsonl \
@@ -115,7 +115,7 @@ validate inprocess-replay 3
 run_logged inprocess-blocking-aic \
   python3 scripts/run_inprocess.py \
   --server-args configs/qwen3-8b-h20/server_args.json \
-  --hisim-config configs/qwen3-8b-h20/hisim.aic.json \
+  --sim-config configs/qwen3-8b-h20/simulator.aic.json \
   --mode BLOCKING \
   --workload random \
   --num-prompts 2 \
@@ -128,7 +128,7 @@ validate inprocess-blocking-aic 2
 run_logged inprocess-sharegpt \
   python3 scripts/run_inprocess.py \
   --server-args configs/qwen3-8b-h20/server_args.json \
-  --hisim-config configs/qwen3-8b-h20/hisim.aic.json \
+  --sim-config configs/qwen3-8b-h20/simulator.aic.json \
   --mode OFFLINE \
   --workload sharegpt \
   --dataset workloads/sharegpt.example.json \
@@ -140,7 +140,7 @@ validate inprocess-sharegpt 2
 run_logged qwen3-32b-aic \
   python3 scripts/run_inprocess.py \
   --server-args configs/qwen3-32b-fp8-h20/server_args.json \
-  --hisim-config configs/qwen3-32b-fp8-h20/hisim.aic.json \
+  --sim-config configs/qwen3-32b-fp8-h20/simulator.aic.json \
   --mode OFFLINE \
   --workload trace \
   --dataset workloads/trace.autobench.example.jsonl \
@@ -150,7 +150,7 @@ validate qwen3-32b-aic 3
 run_logged glm5-p-aic \
   python3 scripts/run_inprocess.py \
   --server-args configs/glm5-p-b300/server_args.json \
-  --hisim-config configs/glm5-p-b300/hisim.aic.json \
+  --sim-config configs/glm5-p-b300/simulator.aic.json \
   --mode OFFLINE \
   --workload trace \
   --dataset workloads/trace.autobench.example.jsonl \
@@ -161,7 +161,7 @@ run_logged dsv4pro-p-ml \
   env SGLANG_ENABLE_UNIFIED_RADIX_TREE=1 \
   python3 scripts/run_inprocess.py \
   --server-args configs/dsv4pro-p-gb300/server_args.json \
-  --hisim-config configs/dsv4pro-p-gb300/hisim.ml.json \
+  --sim-config configs/dsv4pro-p-gb300/simulator.ml.json \
   --mode OFFLINE \
   --workload trace \
   --dataset workloads/trace.autobench.example.jsonl \
@@ -171,7 +171,7 @@ validate dsv4pro-p-ml 3
 start_service \
   service-offline-replay OFFLINE \
   configs/qwen3-8b-h20/server_args.json \
-  configs/qwen3-8b-h20/hisim.replay.json
+  configs/qwen3-8b-h20/simulator.replay.json
 run_logged service-offline-trace \
   env SGLANG_SIMULATOR_OUTPUT_DIR="${RESULT_ROOT}/service-offline-replay" \
   python3 -m sglang_simulator.simulation.bench_serving \
@@ -196,7 +196,7 @@ stop_service
 start_service \
   service-blocking-aic BLOCKING \
   configs/qwen3-8b-h20/server_args.json \
-  configs/qwen3-8b-h20/hisim.aic.json
+  configs/qwen3-8b-h20/simulator.aic.json
 
 run_logged terminal-random \
   env SGLANG_SIMULATOR_OUTPUT_DIR="${RESULT_ROOT}/service-blocking-aic" \
@@ -234,10 +234,10 @@ validate service-blocking-aic 2
 stop_service
 
 run_logged cpu-gpu \
-  env HISIM_GPU_ID="${GPU_ID}" bash scripts/validate_cpu_gpu.sh
+  env SGLANG_SIMULATOR_GPU_ID="${GPU_ID}" bash scripts/validate_cpu_gpu.sh
 
 touch "${RESULT_ROOT}/PASS"
 echo "PASS all acceptance checks"
 echo "results=${RESULT_ROOT}"
 
-# HISIM_ACCEPTANCE_COMPLETE
+# SGLANG_SIMULATOR_ACCEPTANCE_COMPLETE

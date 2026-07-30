@@ -5,7 +5,7 @@ from sglang_simulator.hook import BaseHook
 from sglang_simulator.simulation.manager.env import Envs
 from sglang_simulator.utils.logger import get_logger
 
-logger = get_logger("hisim")
+logger = get_logger("sglang-simulator")
 
 
 class C_StorageBackendFactory(BaseHook):

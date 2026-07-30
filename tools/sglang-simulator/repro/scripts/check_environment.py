@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import importlib.metadata
 import json
+import os
 from pathlib import Path
 
 
@@ -38,12 +39,11 @@ def main() -> None:
         print("model", "OK" if path.exists() else "MISSING", path)
         assert path.exists(), path
 
+    ml_model_path = os.environ.get("SGLANG_SIMULATOR_ML_MODEL_PATH")
+    assert ml_model_path, "SGLANG_SIMULATOR_ML_MODEL_PATH is required"
     predictor_inputs = (
         Path("/host/aiconfigurator/src/aiconfigurator/systems"),
-        Path(
-            "/host/insight_benchmark/test/hisim/hicache/hisim_results/"
-            "b300_tp4_prefill_hgbmono_v2/latency_model_b300_v2_hgbmono_p50.pkl"
-        ),
+        Path(os.path.expandvars(os.path.expanduser(ml_model_path))),
     )
     for path in predictor_inputs:
         print("predictor", "OK" if path.exists() else "MISSING", path)

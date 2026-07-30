@@ -3,7 +3,7 @@
 Loads a joblib pickle of a sklearn-compatible regressor and predicts forward latency
 from batch composition features. Train one with `train_latency_model.py`.
 
-hisim_config.json usage:
+sim_config.json usage:
     "predictor": {
         "name": "ml",
         "database_path": "/path/to/latency_model.pkl"
@@ -63,6 +63,7 @@ class MLTimePredictor(InferTimePredictor):
         **kwargs,
     ):
         super().__init__(model, hw, config)
+        database_path = os.path.expandvars(os.path.expanduser(database_path))
         if not database_path or not os.path.exists(database_path):
             raise FileNotFoundError(
                 f"MLTimePredictor database_path not found: {database_path}. "

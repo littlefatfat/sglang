@@ -1,17 +1,17 @@
-# sglang_simulator
+# SGLang Simulator
 ## Background
 As large language models (LLMs) are rapidly deployed at scale for inference services, inference performance directly impacts user experience, service cost, and resource efficiency. Key metrics such as Time to First Token (TTFT), Time Per Output Token (TPOT), and system throughput are highly dependent on the complex interplay among model architecture, hardware platforms (e.g., A100/H100), inference engines (e.g., SGLang, vLLM, TensorRT-LLM), and runtime configurations (e.g., quantization, batching, and parallelism strategies).
 
-Traditional end-to-end stress testing on real GPU clusters is expensive and time-consuming, making it impractical to efficiently explore the vast space of configuration combinations. To address this, we propose **sglang_simulator**, a high-fidelity CPU-based simulation system. sglang_simulator enables fast, low-cost, and high-fidelity prediction of key performance metrics across different models, target hardware, inference engines, and configurations by replaying real-world inference workload traces collected from production or representative scenarios, thereby accelerating the design and optimization of inference systems.
+Traditional end-to-end stress testing on real GPU clusters is expensive and time-consuming, making it impractical to efficiently explore the vast space of configuration combinations. To address this, we propose **SGLang Simulator**, a high-fidelity CPU-based simulation system. SGLang Simulator enables fast, low-cost, and high-fidelity prediction of key performance metrics across different models, target hardware, inference engines, and configurations by replaying real-world inference workload traces collected from production or representative scenarios, thereby accelerating the design and optimization of inference systems.
 
 ---
 ## Introduction
-sglang_simulator is a simulation tool that provides a command-line interface compatible with SGLang. It launches a mock inference service that accepts user requests—either via real-world trace replay or synthetic load generation—using standard benchmarking scripts. sglang_simulator outputs performance metrics identical to those produced by `sglang bench_serving`. See **Quick Start** for usage examples.
+SGLang Simulator is a simulation tool that provides a command-line interface compatible with SGLang. It launches a mock inference service that accepts user requests—either via real-world trace replay or synthetic load generation—using standard benchmarking scripts. SGLang Simulator outputs performance metrics identical to those produced by `sglang bench_serving`. See **Quick Start** for usage examples.
 
 ---
 ## Installation
 ```bash
-cd tools/sglang_simulator
+cd tools/sglang-simulator
 pip install .
 ```
 
@@ -23,7 +23,7 @@ This example runs inference simulation using real-world trace data. You may also
 #### Launch the Simulation Server
 Set absolute paths once. The commands then work from any current directory:
 ```bash
-export HISIM_ROOT=/absolute/path/to/sglang/tools/sglang-simulator
+export SGLANG_SIMULATOR_ROOT=/absolute/path/to/sglang/tools/sglang-simulator
 export MODEL_PATH=/absolute/path/to/Qwen3-32B-FP8
 export SGLANG_USE_CPU_ENGINE=1
 export CUDA_VISIBLE_DEVICES=""
@@ -32,7 +32,7 @@ export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/sglang_simulator/qwen3-32b
 
 python3 -m sglang_simulator.simulation.sglang.launch_server \
   --model-path "${MODEL_PATH}" \
-  --sim-config-path "${HISIM_ROOT}/test/assets/config.json"
+  --sim-config-path "${SGLANG_SIMULATOR_ROOT}/test/assets/config.json"
 ```
 
 > **Notes**:
@@ -49,7 +49,7 @@ python3 -m sglang_simulator.simulation.sglang.launch_server \
       --backend sglang \
       --model "${MODEL_PATH}" \
       --dataset-name autobench \
-      --dataset-path "${HISIM_ROOT}/repro/workloads/trace.autobench.example.jsonl" \
+      --dataset-path "${SGLANG_SIMULATOR_ROOT}/repro/workloads/trace.autobench.example.jsonl" \
       --use-trace-timestamps \
       --num-prompts 3 \
       --warmup-requests 0 \

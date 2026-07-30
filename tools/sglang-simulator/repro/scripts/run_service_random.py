@@ -89,7 +89,7 @@ def main() -> None:
     parser.add_argument(
         "--sim-config-path",
         type=Path,
-        default=ROOT / "configs/qwen3-8b-h20/hisim.aic.json",
+        default=ROOT / "configs/qwen3-8b-h20/simulator.aic.json",
     )
     parser.add_argument(
         "--dataset-path",

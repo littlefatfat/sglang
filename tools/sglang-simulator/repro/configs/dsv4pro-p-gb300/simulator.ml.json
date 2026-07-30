@@ -9,7 +9,7 @@
   },
   "predictor": {
     "name": "ml",
-    "database_path": "/host/insight_benchmark/test/hisim/hicache/hisim_results/b300_tp4_prefill_hgbmono_v2/latency_model_b300_v2_hgbmono_p50.pkl",
+    "database_path": "${SGLANG_SIMULATOR_ML_MODEL_PATH}",
     "latency_scale": 1.0
   },
   "scheduler": {

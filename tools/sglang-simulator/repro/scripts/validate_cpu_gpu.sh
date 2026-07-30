@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SIMULATOR_ROOT="$(cd "${ROOT}/.." && pwd)"
 REPO_ROOT="$(cd "${SIMULATOR_ROOT}/../.." && pwd)"
-GPU_ID="${HISIM_GPU_ID:-0}"
-RESULT_ROOT="$(mktemp -d /tmp/hisim-cpu-gpu.XXXXXX)"
+GPU_ID="${SGLANG_SIMULATOR_GPU_ID:-0}"
+RESULT_ROOT="$(mktemp -d /tmp/sglang-simulator-cpu-gpu.XXXXXX)"
 trap 'rm -rf -- "${RESULT_ROOT}"' EXIT
 
 cd "${ROOT}"
@@ -36,7 +36,7 @@ run_trace_replay() {
 
   CUDA_VISIBLE_DEVICES="${visible_devices}" python3 scripts/run_inprocess.py \
     --server-args configs/qwen3-8b-h20/server_args.json \
-    --hisim-config configs/qwen3-8b-h20/hisim.replay.json \
+    --sim-config configs/qwen3-8b-h20/simulator.replay.json \
     --device "${mode%%-*}" \
     --page-size 256 \
     --workload trace \
@@ -59,4 +59,4 @@ run_runner_test "${GPU_ID}"
 echo "[4/4] GPU-visible trace replay (physical GPU ${GPU_ID})"
 run_trace_replay cuda "${GPU_ID}"
 
-echo "PASS: CPU-only and GPU-visible HiSim validation"
+echo "PASS: CPU-only and GPU-visible SGLang Simulator validation"

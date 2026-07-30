@@ -32,7 +32,7 @@ logger = get_logger("sgl_simulator")
 
 
 def simulation_mode_log_message(mode: SimulationMode) -> str:
-    return f"HiSim simulation mode: {mode.value}"
+    return f"SGLang Simulator simulation mode: {mode.value}"
 
 
 def effective_l2_load_delay(

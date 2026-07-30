@@ -37,7 +37,7 @@ class C_HiCacheController(BaseHook):
         def wrapped_init(self, *args, **kwargs):
             self.sim_prefetch_buffer = Queue()
             result = original_init(self, *args, **kwargs)
-            # v0.5.16 creates this queue inside the real IO thread. HiSim
+            # v0.5.16 creates this queue inside the real IO thread. SGLang Simulator
             # replaces that thread, so create the scheduler/IO handoff here.
             if hasattr(self, "prefetch_hit_queue"):
                 self.prefetch_buffer = Queue()

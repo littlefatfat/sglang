@@ -157,12 +157,12 @@ def test_target_topology_is_kept_out_of_dummy_engine():
         "dp_size": 1,
         "pp_size": 1,
     }
-    target = json.load(open(ROOT / "configs/glm5-p-b300/hisim.aic.json"))
+    target = json.load(open(ROOT / "configs/glm5-p-b300/simulator.aic.json"))
     assert target["scheduler"]["tp_size"] == 8
 
 
 def test_acceptance_script_has_completion_sentinel():
     script = ROOT / "scripts/acceptance.sh"
     assert script.read_text().rstrip().endswith(
-        "# HISIM_ACCEPTANCE_COMPLETE"
+        "# SGLANG_SIMULATOR_ACCEPTANCE_COMPLETE"
     )

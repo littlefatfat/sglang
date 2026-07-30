@@ -26,8 +26,8 @@ SGLANG_SIMULATOR_OUTPUT_DIR = os.getenv(
 SIMULATION_METRICS_PATH = f"{SGLANG_SIMULATOR_OUTPUT_DIR}/metrics.json"
 os.environ["SGLANG_SIMULATOR_OUTPUT_DIR"] = SGLANG_SIMULATOR_OUTPUT_DIR
 
-if os.getenv("HISIM_SIMULATION_MODE") is None:
-    os.environ["HISIM_SIMULATION_MODE"] = "OFFLINE"
+if os.getenv("SGLANG_SIMULATOR_OUTPUT_MODE") is None:
+    os.environ["SGLANG_SIMULATOR_OUTPUT_MODE"] = "OFFLINE"
 
 from transformers import AutoTokenizer  # noqa
 
@@ -39,7 +39,7 @@ logger = get_logger("sglang_simulator")
 
 
 class SGLangSimulationEngine(Engine):
-    """Engine whose spawned workers install HiSim hooks explicitly."""
+    """Engine whose spawned workers install SGLang Simulator hooks explicitly."""
 
     run_scheduler_process_func = staticmethod(run_simulator_scheduler_process)
     run_detokenizer_process_func = staticmethod(run_simulator_detokenizer_process)

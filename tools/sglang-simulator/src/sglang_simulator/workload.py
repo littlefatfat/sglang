@@ -45,7 +45,7 @@ def load_inprocess_workload(
     timestamp_scale: float,
     seed: int = 42,
 ) -> SimpleDataset:
-    """Use SGLang's benchmark samplers and adapt their rows for HiSim."""
+    """Use SGLang's benchmark samplers and adapt their rows for SGLang Simulator."""
     if timestamp_scale <= 0:
         raise ValueError("timestamp_scale must be greater than zero")
     random.seed(seed)

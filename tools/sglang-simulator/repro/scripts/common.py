@@ -25,7 +25,7 @@ def load_json(path: str | Path) -> dict:
 
 
 def configure_environment(
-    hisim_config: str | Path,
+    sim_config: str | Path,
     output_dir: str | Path,
     mode: str,
     device: str = "cpu",
@@ -35,7 +35,7 @@ def configure_environment(
         raise ValueError("mode must be OFFLINE or BLOCKING")
     output = Path(output_dir).resolve()
     output.mkdir(parents=True, exist_ok=False)
-    os.environ["SGLANG_SIMULATOR_CONFIG_PATH"] = str(Path(hisim_config).resolve())
+    os.environ["SGLANG_SIMULATOR_CONFIG_PATH"] = str(Path(sim_config).resolve())
     os.environ["SGLANG_SIMULATOR_OUTPUT_DIR"] = str(output)
     os.environ["SGLANG_SIMULATOR_HICACHE_STORAGE_KEYS_PATH"] = str(
         output / "hicache_storage_keys.txt"
@@ -52,7 +52,7 @@ def configure_environment(
 
 def normalize_dummy_engine_topology(raw: dict) -> None:
     """Keep the physical dummy Engine single-process."""
-    # HiSim models the target topology through hisim_config.scheduler.
+    # SGLang Simulator models the target topology through sim_config.scheduler.
     # Launching TP4/TP8 workers here only adds NUMA/NCCL requirements.
     for key in ("tp_size", "ep_size", "dp_size", "pp_size"):
         raw[key] = 1

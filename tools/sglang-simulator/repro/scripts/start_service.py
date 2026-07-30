@@ -8,7 +8,7 @@ from common import build_server_args, configure_environment
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--server-args", required=True)
-    parser.add_argument("--hisim-config", required=True)
+    parser.add_argument("--sim-config", required=True)
     parser.add_argument("--mode", choices=["OFFLINE", "BLOCKING"], default="OFFLINE")
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     parser.add_argument("--page-size", type=int)
@@ -17,7 +17,7 @@ def main() -> None:
     args = parser.parse_args()
 
     configure_environment(
-        args.hisim_config, args.output_dir, args.mode, args.device
+        args.sim_config, args.output_dir, args.mode, args.device
     )
 
     from sglang_simulator.simulation.sglang.hook_bootstrap import (
