@@ -112,6 +112,11 @@ run_logged inprocess-replay \
   --output-dir "${RESULT_ROOT}/inprocess-replay"
 validate inprocess-replay 3
 
+run_logged inprocess-hicache-aic \
+  python3 scripts/run_hicache_smoke.py \
+  --output-dir "${RESULT_ROOT}/inprocess-hicache-aic"
+validate inprocess-hicache-aic 3
+
 run_logged inprocess-blocking-aic \
   python3 scripts/run_inprocess.py \
   --server-args configs/qwen3-8b-h20/server_args.json \

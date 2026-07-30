@@ -162,6 +162,37 @@ def test_target_topology_is_kept_out_of_dummy_engine():
     assert target["scheduler"]["tp_size"] == 8
 
 
+def test_hicache_smoke_contract(tmp_path):
+    module = load_script("run_hicache_smoke.py")
+    rows = module.build_workload()
+    assert [row["timestamp"] for row in rows] == [0, 10_000, 20_000]
+    assert rows[0]["prompt"] == rows[2]["prompt"]
+    assert rows[0]["prompt"] != rows[1]["prompt"]
+    assert rows[0]["prompt"][:768] != rows[1]["prompt"][:768]
+
+    config = module.build_server_args({"model_path": "/model"})
+    assert config["max_total_num_tokens"] == 1536
+    assert config["page_size"] == 256
+    assert config["enable_hierarchical_cache"] is True
+    assert config["hicache_write_policy"] == "write_through"
+
+    metrics = {
+        "num_requests": 3,
+        "completed": 3,
+        "kv_cache_host_hit_ratio": 0.25,
+    }
+    requests = [
+        {"final_host_hit_len": 0},
+        {"final_host_hit_len": 0},
+        {"final_host_hit_len": 768},
+    ]
+    (tmp_path / "result.metrics.json").write_text(json.dumps(metrics))
+    (tmp_path / "result.request.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in requests)
+    )
+    module.validate(tmp_path)
+
+
 def test_acceptance_script_has_completion_sentinel():
     script = ROOT / "scripts/acceptance.sh"
     assert script.read_text().rstrip().endswith(
