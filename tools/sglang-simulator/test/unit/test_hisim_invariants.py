@@ -18,8 +18,8 @@ from sglang_simulator.simulation.sglang.scheduler import (
 )
 from sglang_simulator.simulation.types import RequestStats, SimulationMode
 from sglang_simulator.simulation.utils import (
+    calc_input_volume_metrics,
     calc_iteration_metrics,
-    calc_kv_cache_tier_metrics,
     calc_metrics,
 )
 
@@ -66,12 +66,10 @@ def test_alloc_decode_cpu_only_consumes_pages_at_page_boundaries():
     assert out_indices.tolist() == [3, 28, 31, 32]
 
 
-def test_cache_tier_metrics_keep_token_and_bandwidth_accounting_exact():
-    metrics = calc_kv_cache_tier_metrics(
+def test_input_volume_metrics_keep_token_and_bandwidth_accounting_exact():
+    metrics = calc_input_volume_metrics(
         total_input=1000,
         total_reused_tokens=400,
-        total_host_hit_tokens=200,
-        total_storage_hit_tokens=50,
         total_dur_s=10,
         kb_per_token=1024,
     )
@@ -80,10 +78,6 @@ def test_cache_tier_metrics_keep_token_and_bandwidth_accounting_exact():
     assert metrics["total_new_input_GB"] == pytest.approx(600 / 1024)
     assert metrics["new_input_write_throughput_tokens_per_s"] == 60
     assert metrics["new_input_write_throughput_GB_per_s"] == pytest.approx(60 / 1024)
-    assert metrics["l3_to_l2_tokens"] == 50
-    assert metrics["l2_to_l1_tokens"] == 250
-    assert metrics["l3_to_l2_throughput_tokens_per_s"] == 5
-    assert metrics["l2_to_l1_throughput_tokens_per_s"] == 25
 
 
 def test_request_metrics_preserve_prefix_and_tier_hit_ratios(monkeypatch):
@@ -143,9 +137,31 @@ def test_request_metrics_preserve_prefix_and_tier_hit_ratios(monkeypatch):
     assert metrics["kv_cache_storage_hit_ratio"] == pytest.approx(0.025)
     assert metrics["mean_ttft_ms"] == pytest.approx(150)
     assert metrics["mean_queue_ms"] == pytest.approx(15)
+    deferred_metrics = {
+        "L3_write_throughput_tokens_per_s",
+        "L3_write_throughput_GB_per_s",
+        "l3_to_l2_tokens",
+        "l3_to_l2_GB",
+        "l3_to_l2_throughput_tokens_per_s",
+        "l3_to_l2_throughput_GB_per_s",
+        "l2_to_l1_tokens",
+        "l2_to_l1_GB",
+        "l2_to_l1_throughput_tokens_per_s",
+        "l2_to_l1_throughput_GB_per_s",
+        "l2_hicache_pool_capacity_GB",
+        "memory_read_bandwidth_GBps",
+        "memory_write_bandwidth_GBps",
+        "page_size",
+        "tp_size",
+        "dp_size",
+        "ep_size",
+        "pp_size",
+        "num_device_per_node",
+    }
+    assert deferred_metrics.isdisjoint(metrics)
 
 
-def test_iteration_metrics_aggregate_latency_and_h2d_counters():
+def test_iteration_metrics_keep_stable_summary_only():
     metrics = calc_iteration_metrics(
         [
             {
@@ -171,17 +187,8 @@ def test_iteration_metrics_aggregate_latency_and_h2d_counters():
     )
 
     assert metrics["iterations"] == 2
-    assert metrics["total_forward_s"] == pytest.approx(0.30)
-    assert metrics["total_l2_load_s"] == pytest.approx(0.02)
-    assert metrics["total_cpu_s"] == pytest.approx(0.03)
-    assert metrics["total_l2_blocking_wall_s"] == pytest.approx(0.018)
-    assert metrics["total_step_s"] == pytest.approx(0.35)
     assert metrics["avg_iter_latency_ms"] == pytest.approx(175)
-    assert metrics["total_h2d_load_call_count"] == 5
-    assert metrics["total_h2d_load_segment_count"] == 7
-    assert metrics["total_h2d_load_units"] == 9
-    assert metrics["total_h2d_load_bytes"] == 12288
-    assert metrics["iters_with_l2_load"] == 1
+    assert set(metrics) == {"iterations", "avg_iter_latency_ms"}
 
 
 def test_state_manager_pop_and_reset_do_not_leak_between_runs():

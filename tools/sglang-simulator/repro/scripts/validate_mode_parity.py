@@ -14,7 +14,6 @@ EXACT_METRICS = (
     "kv_cache_host_hit_ratio",
     "kv_cache_storage_hit_ratio",
     "iterations",
-    "total_forward_s",
     "replay_exact_match_steps",
     "replay_miss_steps",
     "replay_zero_fallback_steps",

@@ -164,74 +164,26 @@ def _tokens_to_gb(tokens: float, kb_per_token: float) -> float:
     return tokens * kb_per_token / (1024 * 1024)
 
 
-def calc_kv_cache_tier_metrics(
+def calc_input_volume_metrics(
     total_input: int,
     total_reused_tokens: int,
-    total_host_hit_tokens: int,
-    total_storage_hit_tokens: int,
     total_dur_s: float,
     kb_per_token: float = _GLM5_KB_PER_TOKEN,
 ) -> dict:
-    """Compute KV cache metrics across the L1/L2/L3 storage tiers.
-
-    Tier mapping (write-through policy):
-        L1 -> device HBM, L2 -> host DRAM, L3 -> storage DISK.
-
-    Traffic model:
-        * new input tokens (total_input - total_reused_tokens) are
-          written through to L1/L2/L3 simultaneously.
-        * L3 -> L2 write-back moves the tokens that were hit on L3
-          (``total_storage_hit_tokens``) up to L2.
-        * L2 -> L1 write-back moves the tokens that were hit on L2 or
-          pulled up from L3 (``total_host_hit_tokens +
-          total_storage_hit_tokens``) up to L1.
-
-    Occupancy model:
-        Under write-through, every new input token occupies one slot on
-        each tier, so L1/L2/L3 occupancy all equal the new input tokens.
-    """
+    """Compute model-independent new-input volume and throughput."""
     dur_s = max(total_dur_s, 1e-9)
 
     total_new_input_tokens = total_input - total_reused_tokens
     total_new_input_gb = _tokens_to_gb(total_new_input_tokens, kb_per_token)
-
-    # Write-through traffic for new input tokens (identical on L1/L2/L3).
     new_input_write_thr_tokens = total_new_input_tokens / dur_s
     new_input_write_thr_gb = total_new_input_gb / dur_s
 
-    # L3 -> L2 write-back: tokens that were hit at the storage tier.
-    l3_to_l2_tokens = total_storage_hit_tokens
-    l3_to_l2_gb = _tokens_to_gb(l3_to_l2_tokens, kb_per_token)
-    l3_to_l2_thr_tokens = l3_to_l2_tokens / dur_s
-    l3_to_l2_thr_gb = l3_to_l2_gb / dur_s
-
-    # L2 -> L1 write-back: tokens hit at host, which already include the
-    # portion pulled up from storage.
-    l2_to_l1_tokens = total_host_hit_tokens + total_storage_hit_tokens
-    l2_to_l1_gb = _tokens_to_gb(l2_to_l1_tokens, kb_per_token)
-    l2_to_l1_thr_tokens = l2_to_l1_tokens / dur_s
-    l2_to_l1_thr_gb = l2_to_l1_gb / dur_s
-
     return {
         "kv_cache_kb_per_token": kb_per_token,
-        # Keep legacy keys for backward compatibility.
         "total_new_input": total_new_input_tokens,
         "total_new_input_GB": total_new_input_gb,
-        # Write-through traffic for new input (same on L1/L2/L3).
         "new_input_write_throughput_tokens_per_s": new_input_write_thr_tokens,
         "new_input_write_throughput_GB_per_s": new_input_write_thr_gb,
-        "L3_write_throughput_tokens_per_s": new_input_write_thr_tokens / 8,
-        "L3_write_throughput_GB_per_s": new_input_write_thr_gb / 8,
-        # L3 -> L2 write-back totals and throughput.
-        "l3_to_l2_tokens": l3_to_l2_tokens,
-        "l3_to_l2_GB": l3_to_l2_gb,
-        "l3_to_l2_throughput_tokens_per_s": l3_to_l2_thr_tokens,
-        "l3_to_l2_throughput_GB_per_s": l3_to_l2_thr_gb,
-        # L2 -> L1 write-back totals and throughput (includes L3 portion).
-        "l2_to_l1_tokens": l2_to_l1_tokens,
-        "l2_to_l1_GB": l2_to_l1_gb,
-        "l2_to_l1_throughput_tokens_per_s": l2_to_l1_thr_tokens,
-        "l2_to_l1_throughput_GB_per_s": l2_to_l1_thr_gb,
     }
 
 
@@ -243,41 +195,11 @@ def calc_iteration_metrics(
     forward_s = sum(float(item.get("forward_latency", 0) or 0) for item in iteration_stats)
     l2_load_s = sum(float(item.get("l2_load_latency", 0) or 0) for item in iteration_stats)
     cpu_s = sum(float(item.get("cpu_overhead", 0) or 0) for item in iteration_stats)
-    l2_blocking_wall_s = sum(
-        float(item.get("l2_blocking_wall_latency", 0) or 0)
-        for item in iteration_stats
-    )
     total_s = forward_s + l2_load_s + cpu_s
     avg_iter_latency_ms = total_s / iterations * 1000 if iterations else 0
-    total_h2d_load_call_count = sum(
-        int(item.get("h2d_load_call_count", 0) or 0) for item in iteration_stats
-    )
-    total_h2d_load_segment_count = sum(
-        int(item.get("h2d_load_segment_count", 0) or 0) for item in iteration_stats
-    )
-    total_h2d_load_units = sum(
-        int(item.get("h2d_load_units", 0) or 0) for item in iteration_stats
-    )
-    total_h2d_load_bytes = sum(
-        float(item.get("h2d_load_bytes", 0) or 0) for item in iteration_stats
-    )
-
-    iters_with_l2_load = sum(
-        1 for item in iteration_stats if float(item.get("l2_load_latency", 0) or 0) > 0
-    )
     metrics = {
         "iterations": iterations,
-        "total_forward_s": forward_s,
-        "total_l2_load_s": l2_load_s,
-        "total_cpu_s": cpu_s,
-        "total_l2_blocking_wall_s": l2_blocking_wall_s,
-        "total_step_s": total_s,
         "avg_iter_latency_ms": avg_iter_latency_ms,
-        "total_h2d_load_call_count": total_h2d_load_call_count,
-        "total_h2d_load_segment_count": total_h2d_load_segment_count,
-        "total_h2d_load_units": total_h2d_load_units,
-        "total_h2d_load_bytes": total_h2d_load_bytes,
-        "iters_with_l2_load": iters_with_l2_load,
     }
 
     if request_metrics:
@@ -289,13 +211,6 @@ def calc_iteration_metrics(
             metrics["avg_iters_per_req"] = (
                 mean_exec_ms / avg_iter_latency_ms if avg_iter_latency_ms else None
             )
-
-        l2_to_l1_tokens = request_metrics.get("l2_to_l1_tokens")
-        metrics["avg_l2_to_l1_tokens_per_l2_load_iter"] = (
-            l2_to_l1_tokens / iters_with_l2_load
-            if l2_to_l1_tokens is not None and iters_with_l2_load
-            else None
-        )
 
     return metrics
 
@@ -351,12 +266,10 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
     kb_per_token = None
     model_info = None
     sched_config = None
-    platform_config = None
     try:
         from sglang_simulator.simulation.manager import ConfigManager
         model_info = ConfigManager.get_model_info()
         sched_config = ConfigManager.get_scheduler_config()
-        platform_config = ConfigManager.get_platform_config()
     except Exception as e:
         print(f"[utils.calc_metrics] ConfigManager unavailable: {type(e).__name__}: {e}")
 
@@ -385,21 +298,9 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
     if kb_per_token is None:
         kb_per_token = _KB_PER_TOKEN_BY_MODEL["glm-5"]
 
-    # L2 host KV pool capacity (GB): hicache_ratio * max_total_tokens worth of KV.
-    _hc = getattr(sched_config, "enable_hierarchical_cache", None) if sched_config else None
-    _hr = getattr(sched_config, "hicache_ratio", None) if sched_config else None
-    _mtt = getattr(sched_config, "max_total_tokens", None) if sched_config else None
-    l2_hicache_pool_capacity_gb = (
-        _tokens_to_gb(_hr * _mtt, kb_per_token)
-        if _hc and _hr is not None and _mtt is not None
-        else None
-    )
-
-    kv_cache_tier_metrics = calc_kv_cache_tier_metrics(
+    input_volume_metrics = calc_input_volume_metrics(
         total_input=total_input,
         total_reused_tokens=total_reused_tokens,
-        total_host_hit_tokens=total_host_hit_tokens,
-        total_storage_hit_tokens=total_storage_hit_tokens,
         total_dur_s=total_dur_s,
         kb_per_token=kb_per_token,
     )
@@ -448,28 +349,7 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
         "kv_cache_device_hit_ratio": (
             0 if total_input == 0 else total_device_hit_tokens / total_input
         ),
-        **kv_cache_tier_metrics,
-        "l2_hicache_pool_capacity_GB": l2_hicache_pool_capacity_gb,
-        "memory_read_bandwidth_GBps": (
-            getattr(platform_config, "memory_read_bandwidth_gb", None)
-            if platform_config
-            else None
-        ),
-        "memory_write_bandwidth_GBps": (
-            getattr(platform_config, "memory_write_bandwidth_gb", None)
-            if platform_config
-            else None
-        ),
-        "page_size": getattr(sched_config, "page_size", None) if sched_config else None,
-        "tp_size": getattr(sched_config, "tp_size", None) if sched_config else None,
-        "dp_size": getattr(sched_config, "dp_size", None) if sched_config else None,
-        "ep_size": getattr(sched_config, "ep_size", None) if sched_config else None,
-        "pp_size": getattr(sched_config, "pp_size", None) if sched_config else None,
-        "num_device_per_node": (
-            getattr(platform_config, "num_device_per_node", None)
-            if platform_config
-            else None
-        ),
+        **input_volume_metrics,
         "mean_ttft_ms": np.mean(ttfts or 0) * 1000,
         "median_ttft_ms": np.median(ttfts or 0) * 1000,
         "std_ttft_ms": np.std(ttfts or 0) * 1000,

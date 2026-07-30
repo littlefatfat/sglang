@@ -142,9 +142,8 @@ benchmark 客户端的发送节奏由 `--request-rate` 或
 时 sleep 全部有效 load 时延；开启 overlap schedule 时仅 sleep
 `max(load - 上一轮 inference, 0)`。这段实际 sleep 不再计入 CPU overhead，
 避免重复计时。`OFFLINE` 不 sleep，但逻辑时钟仍包含相同的可见 L2 load。
-
-`total_l2_blocking_wall_s` 是本次 BLOCKING 实际 sleep 的 L2 墙钟总和；
-OFFLINE 中固定为 `0`。
+L2 load 和 blocking sleep 的逐 step 明细保存在 `iteration.jsonl`；
+第一版不在 `metrics.json` 中输出 L2/L3 汇总字段。
 
 ## 3. 启动方式一：服务化
 
@@ -493,8 +492,9 @@ bash "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simula
 | `server_args.json` | 本次实际服务配置 |
 | `hisim_config.json` | 本次实际硬件和 predictor 配置 |
 
-`result.metrics.json` 中的 `total_l2_load_s` 是逻辑 L2 load 总时延，
-`total_l2_blocking_wall_s` 是 BLOCKING 模式实际阻塞的墙钟时间。
+第一版 `metrics.json` 只保留稳定的请求、吞吐、命中率和延迟指标。
+L2/L3、拓扑以及 step 耗时拆分暂不进入汇总指标；需要诊断时读取
+`iteration.jsonl` 和本次保存的配置文件。
 
 缓存命中分项互斥：
 

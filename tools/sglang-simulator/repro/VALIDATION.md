@@ -345,7 +345,8 @@ simulator 直接依赖。
 
 Replay 只替换 forward latency，0714 CPU overhead 语义保持开启。验收中的
 forward-only replay 为 3/3 exact match、0 fallback，且
-`total_cpu_s=0.00518`，确认 CPU overhead 未被关闭。
+从 `iteration.jsonl` 汇总的 CPU overhead 为 `0.00518s`，确认 CPU
+overhead 未被关闭。
 
 ### 服务化与 Python 同进程一致性
 
