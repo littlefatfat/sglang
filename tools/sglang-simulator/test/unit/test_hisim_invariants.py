@@ -161,6 +161,51 @@ def test_request_metrics_preserve_prefix_and_tier_hit_ratios(monkeypatch):
     assert deferred_metrics.isdisjoint(metrics)
 
 
+def test_request_metrics_clamp_negative_queue_duration_to_zero():
+    metrics = calc_metrics(
+        [
+            RequestStats(
+                rid="clock-skew",
+                input_length=8,
+                output_length=1,
+                queue_start=0.20,
+                queue_end=0.10,
+                last_event_time=0.30,
+                gen_token_latencies=[0.05],
+            )
+        ]
+    )
+
+    assert metrics["mean_queue_ms"] == 0
+
+
+def test_request_metrics_clamp_the_mean_not_each_queue_sample():
+    metrics = calc_metrics(
+        [
+            RequestStats(
+                rid="negative",
+                input_length=8,
+                output_length=1,
+                queue_start=0.20,
+                queue_end=0.10,
+                last_event_time=0.30,
+                gen_token_latencies=[0.05],
+            ),
+            RequestStats(
+                rid="positive",
+                input_length=8,
+                output_length=1,
+                queue_start=0.10,
+                queue_end=0.30,
+                last_event_time=0.40,
+                gen_token_latencies=[0.05],
+            ),
+        ]
+    )
+
+    assert metrics["mean_queue_ms"] == pytest.approx(50)
+
+
 def test_iteration_metrics_keep_stable_summary_only():
     metrics = calc_iteration_metrics(
         [
