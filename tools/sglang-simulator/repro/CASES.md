@@ -268,7 +268,11 @@ export SGLANG_SIMULATOR_OUT=/tmp/sglang-simulator-dsv4-aic
 export SGLANG_SIMULATOR_PORT=31511
 
 # ML（另一次独立运行）
-export SGLANG_SIMULATOR_ML_MODEL_PATH=/absolute/path/to/latency_model.pkl
+export SGLANG_SIMULATOR_ML_MODEL_PATH=/host/insight_benchmark/test/hisim/hicache/hisim_results/b300_tp4_prefill_hgbmono_v2/latency_model_b300_v2_hgbmono_p50.pkl
+test -f "${SGLANG_SIMULATOR_ML_MODEL_PATH}" || {
+  echo "missing ML predictor: ${SGLANG_SIMULATOR_ML_MODEL_PATH}" >&2
+  return 1 2>/dev/null || exit 1
+}
 export SGLANG_SIMULATOR_CONFIG="${SGLANG_SIMULATOR_REPRO}/configs/dsv4pro-p-gb300/simulator.ml.json"
 export SGLANG_SIMULATOR_OUT=/tmp/sglang-simulator-dsv4-ml
 export SGLANG_SIMULATOR_PORT=31512
