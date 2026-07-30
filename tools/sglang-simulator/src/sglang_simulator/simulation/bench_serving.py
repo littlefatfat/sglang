@@ -12,8 +12,6 @@ User datasets must not contain simulator metadata.
 """
 
 import argparse
-import contextlib
-import io
 import json
 import os
 import re
@@ -34,44 +32,6 @@ _ORIGINAL_GET_REQUEST = serving.get_request
 _ORIGINAL_RUN_BENCHMARK = serving.run_benchmark
 _SIMULATOR_MODE = "offline"
 _USE_TRACE_TIMESTAMPS = False
-
-
-def _metrics_path() -> Path:
-    output_dir = Path(
-        os.getenv("SGLANG_SIMULATOR_OUTPUT_DIR", "/tmp/sglang_simulator/output")
-    )
-    return output_dir / "metrics.json"
-
-
-def _load_backend_metrics() -> dict:
-    metrics_path = _metrics_path()
-    if not metrics_path.is_file():
-        raise RuntimeError(
-            f"Simulator backend metrics are not available at {metrics_path}. "
-            "Set SGLANG_SIMULATOR_OUTPUT_DIR in the benchmark process to the "
-            "same directory used by the simulator server."
-        )
-    return json.loads(metrics_path.read_text(encoding="utf-8"))
-
-
-class _ServingResultFilter(io.TextIOBase):
-    """Hide SGLang's client-side summary while streaming all other output."""
-
-    def __init__(self, target):
-        self.target = target
-        self.suppress = False
-
-    def write(self, text):
-        if "Serving Benchmark Result" in text:
-            self.suppress = True
-        if self.suppress:
-            if text.strip() == "=" * 50:
-                self.suppress = False
-            return len(text)
-        return self.target.write(text)
-
-    def flush(self):
-        return self.target.flush()
 
 
 def _set_simulation_metadata(
@@ -164,29 +124,26 @@ def install_aiohttp_json_hijack(
 
 
 def simulator_calculate_metrics(*args, **kwargs):
-    """Supply backend metrics to code paths inside SGLang's benchmark."""
+    """Prefer simulator metrics, with official client metrics as a fallback."""
     client_metrics, output_lens = _ORIGINAL_CALCULATE_METRICS(*args, **kwargs)
-    backend_metrics = _load_backend_metrics()
+    output_dir = Path(
+        os.getenv("SGLANG_SIMULATOR_OUTPUT_DIR", "/tmp/sglang_simulator/output")
+    )
+    metrics_path = output_dir / "metrics.json"
+    if not metrics_path.is_file():
+        print(
+            f"Simulator metrics are not available at {metrics_path}; "
+            "showing client-side benchmark metrics."
+        )
+        return client_metrics, output_lens
+
+    backend_metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
     metric_names = {field.name for field in fields(serving.BenchmarkMetrics)}
     values = {
         name: backend_metrics.get(name, getattr(client_metrics, name))
         for name in metric_names
     }
     return serving.BenchmarkMetrics(**values), output_lens
-
-
-def _replace_explicit_output_file(args: argparse.Namespace, metrics: dict) -> None:
-    output_file = getattr(args, "output_file", None)
-    if not output_file:
-        return
-    path = Path(output_file)
-    lines = path.read_text(encoding="utf-8").splitlines()
-    authoritative = json.dumps(metrics)
-    if lines:
-        lines[-1] = authoritative
-    else:
-        lines.append(authoritative)
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def simulator_run_benchmark(args: argparse.Namespace):
@@ -199,19 +156,10 @@ def simulator_run_benchmark(args: argparse.Namespace):
         raise ValueError(
             "Mooncake's multi-round scheduler is not supported by the simulator "
             "benchmark adapter"
-    )
+        )
     _USE_TRACE_TIMESTAMPS = getattr(args, "use_trace_timestamps", False)
     args.profile = True
-    with contextlib.redirect_stdout(_ServingResultFilter(sys.stdout)):
-        _ORIGINAL_RUN_BENCHMARK(args)
-
-    backend_metrics = _load_backend_metrics()
-    _replace_explicit_output_file(args, backend_metrics)
-    print("\n============ Simulator Backend Metrics ============")
-    print(f"Source: {_metrics_path()}")
-    print(json.dumps(backend_metrics, indent=4))
-    print("=" * 51)
-    return backend_metrics
+    return _ORIGINAL_RUN_BENCHMARK(args)
 
 
 def _extract_simulator_args(argv: list[str]) -> tuple[str, list[str]]:

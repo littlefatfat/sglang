@@ -42,10 +42,6 @@ python3 -m sglang_simulator.simulation.sglang.launch_server \
 > - The provided [config file](test/assets/config.json) is for testing. Adjust hardware bandwidth and other parameters to match your actual deployment scenario for higher fidelity.
 
 #### Run the Simulation Benchmark
-The benchmark process must use the same `SGLANG_SIMULATOR_OUTPUT_DIR` as the
-server. Its final result is read exclusively from that directory's
-`metrics.json`.
-
 - **Autobench trace replay**:
   ```bash
   python3 -m sglang_simulator.simulation.bench_serving \

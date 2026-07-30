@@ -326,8 +326,8 @@ python3 "${HISIM_REPRO}/scripts/validate_result.py" \
 ```
 
 终端 B 不读取 simulator 的设备变量。`--simulator-mode` 控制客户端是按真实时间
-pacing，还是生成逻辑时间。终端 B 的 `SGLANG_SIMULATOR_OUTPUT_DIR` 必须与终端 A
-相同，最终结果只从该目录的服务端 `metrics.json` 读取；它不影响打流语义。
+pacing，还是生成逻辑时间；`SGLANG_SIMULATOR_OUTPUT_DIR` 只用于让客户端显示同一
+目录里的后端仿真指标，不影响打流语义。
 
 本次实测：
 
