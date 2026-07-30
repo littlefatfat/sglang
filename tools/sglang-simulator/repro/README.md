@@ -480,7 +480,6 @@ bash "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simula
 - `prefix_cache_reused_ratio` 与 device/host/storage 分项一致
 - replay 回归的 prefix hit ratio 不变
 - batch composition 首个差异可定位
-- `kv_cache_kb_per_token` 与对应部署基线一致
 
 ## 9. 输出
 

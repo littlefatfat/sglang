@@ -18,7 +18,7 @@ from sglang_simulator.simulation.sglang.scheduler import (
 )
 from sglang_simulator.simulation.types import RequestStats, SimulationMode
 from sglang_simulator.simulation.utils import (
-    calc_input_volume_metrics,
+    calc_input_token_metrics,
     calc_iteration_metrics,
     calc_metrics,
 )
@@ -66,18 +66,15 @@ def test_alloc_decode_cpu_only_consumes_pages_at_page_boundaries():
     assert out_indices.tolist() == [3, 28, 31, 32]
 
 
-def test_input_volume_metrics_keep_token_and_bandwidth_accounting_exact():
-    metrics = calc_input_volume_metrics(
+def test_input_token_metrics_keep_accounting_exact():
+    metrics = calc_input_token_metrics(
         total_input=1000,
         total_reused_tokens=400,
         total_dur_s=10,
-        kb_per_token=1024,
     )
 
     assert metrics["total_new_input"] == 600
-    assert metrics["total_new_input_GB"] == pytest.approx(600 / 1024)
     assert metrics["new_input_write_throughput_tokens_per_s"] == 60
-    assert metrics["new_input_write_throughput_GB_per_s"] == pytest.approx(60 / 1024)
 
 
 def test_request_metrics_preserve_prefix_and_tier_hit_ratios(monkeypatch):
@@ -157,6 +154,9 @@ def test_request_metrics_preserve_prefix_and_tier_hit_ratios(monkeypatch):
         "ep_size",
         "pp_size",
         "num_device_per_node",
+        "kv_cache_kb_per_token",
+        "total_new_input_GB",
+        "new_input_write_throughput_GB_per_s",
     }
     assert deferred_metrics.isdisjoint(metrics)
 

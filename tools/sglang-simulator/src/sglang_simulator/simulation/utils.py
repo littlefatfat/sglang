@@ -124,66 +124,20 @@ def kv_bytes_per_full_token(
     return per_gpu * scheduler_config.tp_size * scheduler_config.pp_size
 
 
-# KV cache bytes per token, model-specific.
-# Sources: sglang server log "DSV4 memory calculation" line (dsv4-pro);
-#          original GLM-5 calibration (glm-5).
-#
-# TODO (proper fix): replace this lookup with derivation from model/config:
-#   bytes_per_token = calc_kv_cache_cell_elems(model_info, tp, pp) *
-#                     scheduler_config.kv_cache_data_type.bytes
-# `calc_kv_cache_cell_elems` already exists above. To wire through,
-# C_SchedulerHook (sglang/scheduler.py) would need to pass model_info +
-# scheduler_config (both available via ConfigManager.get_*) into calc_metrics.
-_KB_PER_TOKEN_BY_MODEL: dict[str, float] = {
-    # Cluster-total KiB/token (sum across all TP*PP shards) — same convention
-    # as kv_bytes_per_full_token() above. Used only when ConfigManager isn't
-    # populated; main path always derives the value live.
-    "glm-5":    431.45,                  # = 53.93 KiB/GPU * tp=8
-    "dsv4-pro": 23749.84 / 1024 * 4,     # ~92.77 KiB; 23.19 KiB/GPU * tp=4
-}
-
-
-def lookup_kb_per_token(model_path: str) -> float:
-    """Fallback for legacy callers without ModelInfo/SchedulerConfig.
-
-    Matches model identifier substrings inside ``model_path``.
-    """
-    p = (model_path or "").lower()
-    if "deepseek-v4-pro" in p or "dsv4-pro" in p or "dpskv4pro" in p:
-        return _KB_PER_TOKEN_BY_MODEL["dsv4-pro"]
-    if "glm-5" in p or "glm5" in p:
-        return _KB_PER_TOKEN_BY_MODEL["glm-5"]
-    raise ValueError(f"No KV bytes/token mapping for model_path={model_path!r}")
-
-
-# Back-compat alias for callers still importing the old constant name.
-_GLM5_KB_PER_TOKEN = _KB_PER_TOKEN_BY_MODEL["glm-5"]
-
-
-def _tokens_to_gb(tokens: float, kb_per_token: float) -> float:
-    return tokens * kb_per_token / (1024 * 1024)
-
-
-def calc_input_volume_metrics(
+def calc_input_token_metrics(
     total_input: int,
     total_reused_tokens: int,
     total_dur_s: float,
-    kb_per_token: float = _GLM5_KB_PER_TOKEN,
 ) -> dict:
-    """Compute model-independent new-input volume and throughput."""
+    """Compute model-independent new-input token count and throughput."""
     dur_s = max(total_dur_s, 1e-9)
 
     total_new_input_tokens = total_input - total_reused_tokens
-    total_new_input_gb = _tokens_to_gb(total_new_input_tokens, kb_per_token)
     new_input_write_thr_tokens = total_new_input_tokens / dur_s
-    new_input_write_thr_gb = total_new_input_gb / dur_s
 
     return {
-        "kv_cache_kb_per_token": kb_per_token,
         "total_new_input": total_new_input_tokens,
-        "total_new_input_GB": total_new_input_gb,
         "new_input_write_throughput_tokens_per_s": new_input_write_thr_tokens,
-        "new_input_write_throughput_GB_per_s": new_input_write_thr_gb,
     }
 
 
@@ -256,53 +210,10 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
         total_host_hit_tokens += req.final_host_hit_len - req.final_storage_hit_len
         total_storage_hit_tokens += req.final_storage_hit_len
 
-    # Derive accurate kb_per_token via a real 3-tier fallback chain.
-    # Historical bug: the chain used to be `if/elif/else` inside a single
-    # try/except — if path 1 (kv_bytes_per_full_token) RAISED, the outer except
-    # jumped straight to glm-5 default, skipping path 2 (lookup_kb_per_token).
-    # That silently gave 431.45 KB/token for DSv4-Pro instead of 92.77,
-    # inflating all *_GB metrics by ~4.65x. The 3 paths are now independent
-    # try/except'd so each can fail back to the next.
-    kb_per_token = None
-    model_info = None
-    sched_config = None
-    try:
-        from sglang_simulator.simulation.manager import ConfigManager
-        model_info = ConfigManager.get_model_info()
-        sched_config = ConfigManager.get_scheduler_config()
-    except Exception as e:
-        print(f"[utils.calc_metrics] ConfigManager unavailable: {type(e).__name__}: {e}")
-
-    # Path 1: live derivation from model + scheduler config (most accurate).
-    if kb_per_token is None and model_info is not None and sched_config is not None:
-        try:
-            kb_per_token = kv_bytes_per_full_token(model_info, sched_config) / 1024
-        except Exception as e:
-            print(
-                f"[utils.calc_metrics] kv_bytes_per_full_token failed "
-                f"({type(e).__name__}: {e}); trying per-model lookup"
-            )
-
-    # Path 2: model_path substring lookup (works without scheduler_config).
-    if kb_per_token is None and model_info is not None and getattr(model_info, "model_path", None):
-        try:
-            kb_per_token = lookup_kb_per_token(model_info.model_path)
-        except Exception as e:
-            print(
-                f"[utils.calc_metrics] lookup_kb_per_token({model_info.model_path!r}) "
-                f"failed: {e}; using glm-5 default"
-            )
-
-    # Path 3: hardcoded glm-5 default (last resort — gives WRONG GB metrics
-    # for any non-glm-5 model; will print a warning above).
-    if kb_per_token is None:
-        kb_per_token = _KB_PER_TOKEN_BY_MODEL["glm-5"]
-
-    input_volume_metrics = calc_input_volume_metrics(
+    input_token_metrics = calc_input_token_metrics(
         total_input=total_input,
         total_reused_tokens=total_reused_tokens,
         total_dur_s=total_dur_s,
-        kb_per_token=kb_per_token,
     )
 
     max_output_tokens_per_s = 0.0
@@ -349,7 +260,7 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
         "kv_cache_device_hit_ratio": (
             0 if total_input == 0 else total_device_hit_tokens / total_input
         ),
-        **input_volume_metrics,
+        **input_token_metrics,
         "mean_ttft_ms": np.mean(ttfts or 0) * 1000,
         "median_ttft_ms": np.median(ttfts or 0) * 1000,
         "std_ttft_ms": np.std(ttfts or 0) * 1000,
