@@ -1,0 +1,29 @@
+{
+  "platform": {
+    "accelerator": {"name": "b300_sxm"},
+    "disk_read_bandwidth_gb": 64,
+    "disk_write_bandwidth_gb": 64,
+    "memory_read_bandwidth_gb": 64,
+    "memory_write_bandwidth_gb": 64,
+    "num_device_per_node": 8
+  },
+  "predictor": {
+    "name": "aiconfigurator",
+    "database_path": "/host/aiconfigurator/src/aiconfigurator/systems/",
+    "database_mode": "SILICON",
+    "prefill_scale_factor": 1.0,
+    "decode_scale_factor": 1.0,
+    "prefill_min_latency": 0.0,
+    "workload_distribution": "power_law_1.01"
+  },
+  "scheduler": {
+    "tp_size": 8,
+    "ep_size": 1,
+    "dp_size": 1,
+    "data_type": "FP4",
+    "kv_cache_data_type": "FP16",
+    "backend_name": "sglang",
+    "backend_version": "0.5.10",
+    "kv_bytes_per_token_per_gpu": 55226.445887645335
+  }
+}

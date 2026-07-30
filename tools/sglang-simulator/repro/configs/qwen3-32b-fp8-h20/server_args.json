@@ -1,0 +1,19 @@
+{
+  "model_path": "/nfs/Qwen/Qwen3-32B-FP8",
+  "max_total_num_tokens": 200000,
+  "max_running_requests": 256,
+  "max_prefill_tokens": 16384,
+  "chunked_prefill_size": 8192,
+  "page_size": 1,
+  "disable_overlap_schedule": true,
+  "enable_hierarchical_cache": false,
+  "hicache_storage_backend": null,
+  "hicache_storage_prefetch_policy": "best_effort",
+  "kv_cache_dtype": "auto",
+  "quantization": null,
+  "tp_size": 1,
+  "ep_size": 1,
+  "dp_size": 1,
+  "pp_size": 1,
+  "version": "0.5.6.post2"
+}

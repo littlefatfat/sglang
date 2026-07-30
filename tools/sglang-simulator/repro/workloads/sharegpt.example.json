@@ -1,0 +1,14 @@
+[
+  {
+    "conversations": [
+      {"from": "human", "value": "Explain prefix caching in one sentence."},
+      {"from": "gpt", "value": "Prefix caching reuses KV states shared by prompt prefixes."}
+    ]
+  },
+  {
+    "conversations": [
+      {"from": "human", "value": "What does TTFT measure?"},
+      {"from": "gpt", "value": "TTFT measures latency from request arrival to the first output token."}
+    ]
+  }
+]

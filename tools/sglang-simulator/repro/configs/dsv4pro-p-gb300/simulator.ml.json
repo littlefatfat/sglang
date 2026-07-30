@@ -1,0 +1,25 @@
+{
+  "platform": {
+    "accelerator": {"name": "gb300"},
+    "disk_read_bandwidth_gb": 64,
+    "disk_write_bandwidth_gb": 64,
+    "memory_read_bandwidth_gb": 64,
+    "memory_write_bandwidth_gb": 64,
+    "num_device_per_node": 4
+  },
+  "predictor": {
+    "name": "ml",
+    "database_path": "${SGLANG_SIMULATOR_ML_MODEL_PATH}",
+    "latency_scale": 1.0
+  },
+  "scheduler": {
+    "tp_size": 4,
+    "ep_size": 1,
+    "dp_size": 1,
+    "data_type": "FP8",
+    "kv_cache_data_type": "FP8",
+    "backend_name": "sglang",
+    "backend_version": "0.5.11_660b28976_dsv4pro",
+    "kv_bytes_per_token_per_gpu": 23749.84
+  }
+}
