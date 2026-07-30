@@ -47,18 +47,19 @@ def test_prepare_autobench_trace(tmp_path):
     rows = module.convert_rows(source, {0, 1}, None)
     assert [row["timestamp"] for row in rows] == [0, 250]
     assert rows[1]["prompt_len"] == 3
-    simulation = rows[1]["extra_request_body"]["sampling_params"][
-        "custom_params"
-    ]["simulation"]
-    assert simulation == {"created_time_ms": 250, "total_request": 2}
+    assert set(rows[1]) == {"prompt", "prompt_len", "output_len", "timestamp"}
 
 
-def test_service_random_uses_official_benchmark():
+def test_service_random_uses_simulator_benchmark():
     module = load_script("run_service_random.py")
     command = module.benchmark_command(
         30000, "/model", Path("/dataset.json"), 2, 1024, 128, 4
     )
-    assert command[1:4] == ["-m", "sglang.benchmark.serving", "--backend"]
+    assert command[1:3] == [
+        "-m",
+        "sglang_simulator.simulation.bench_serving",
+    ]
+    assert command[command.index("--simulator-mode") + 1] == "blocking"
     assert command[command.index("--dataset-name") + 1] == "random"
     assert command[command.index("--request-rate") + 1] == "4"
     assert command[command.index("--random-input-len") + 1] == "1024"

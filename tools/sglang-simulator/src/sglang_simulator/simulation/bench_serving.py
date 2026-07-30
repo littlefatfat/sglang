@@ -1,14 +1,197 @@
-"""Compatibility entry point. Use ``python -m sglang.benchmark.serving``."""
+"""SGLang serving benchmark adapter for simulator traffic.
 
-import warnings
+This module deliberately reuses SGLang's benchmark implementation and dataset
+loaders.  It only owns the simulator-specific parts of the protocol:
 
-from sglang.benchmark.serving import cli_main
+* convert request-rate or trace timestamps into logical arrival timestamps;
+* inject the internal ``sampling_params.custom_params.simulation`` metadata;
+* avoid client-side pacing in OFFLINE mode; and
+* display backend-produced simulator metrics when they are locally available.
+
+User datasets must not contain simulator metadata.
+"""
+
+import argparse
+import json
+import os
+import re
+import sys
+from dataclasses import fields
+from pathlib import Path
+from typing import AsyncGenerator, List, Optional
+
+import aiohttp
+import numpy as np
+
+from sglang.benchmark import serving
+from sglang.benchmark.datasets.common import DatasetRow
+
+_ORIGINAL_AIOHTTP_REQUEST = None
+_ORIGINAL_CALCULATE_METRICS = serving.calculate_metrics
+_ORIGINAL_GET_REQUEST = serving.get_request
+_ORIGINAL_RUN_BENCHMARK = serving.run_benchmark
+_SIMULATOR_MODE = "offline"
+_USE_TRACE_TIMESTAMPS = False
+
+
+def _set_simulation_metadata(
+    request: DatasetRow, *, created_time_ms: float, total_request: int
+) -> None:
+    """Attach transient metadata without replacing dataset-specific parameters."""
+    extra_request_body = dict(request.extra_request_body or {})
+    extra_request_body["simulation"] = {
+        "created_time_ms": created_time_ms,
+        "total_request": total_request,
+    }
+    request.extra_request_body = extra_request_body
+
+
+async def simulator_get_request(
+    input_requests: List[DatasetRow],
+    request_rate: float,
+    use_trace_timestamps: bool = False,
+    slowdown_factor: float = 1.0,
+) -> AsyncGenerator[DatasetRow, None]:
+    """Generate simulator traffic while retaining official BLOCKING pacing."""
+    # SGLang v0.5.16 parses --use-trace-timestamps but its benchmark() does not
+    # forward the value to get_request(). Preserve it in our entry point.
+    use_trace_timestamps = use_trace_timestamps or _USE_TRACE_TIMESTAMPS
+    if _SIMULATOR_MODE == "blocking":
+        async for request in _ORIGINAL_GET_REQUEST(
+            input_requests,
+            request_rate,
+            use_trace_timestamps=use_trace_timestamps,
+            slowdown_factor=slowdown_factor,
+        ):
+            yield request
+        return
+
+    total_request = len(input_requests)
+    if use_trace_timestamps:
+        if any(request.timestamp is None for request in input_requests):
+            raise ValueError(
+                "--use-trace-timestamps requires every request to have timestamp"
+            )
+        input_requests.sort(key=lambda request: request.timestamp)
+        trace_start_time_ms = input_requests[0].timestamp if input_requests else 0.0
+        for request in input_requests:
+            created_time_ms = (
+                float(request.timestamp) - float(trace_start_time_ms)
+            ) * slowdown_factor
+            _set_simulation_metadata(
+                request,
+                created_time_ms=created_time_ms,
+                total_request=total_request,
+            )
+            yield request
+        return
+
+    created_time_ms = 0.0
+    for request in input_requests:
+        _set_simulation_metadata(
+            request,
+            created_time_ms=created_time_ms,
+            total_request=total_request,
+        )
+        yield request
+        if request_rate != float("inf"):
+            created_time_ms += np.random.exponential(1.0 / request_rate) * 1000.0
+
+
+def install_aiohttp_json_hijack(
+    *, hijack_url_regex: Optional[str] = r"/generate(?:\?.*)?$"
+) -> None:
+    """Move transient metadata into the already-built sampling parameters."""
+    global _ORIGINAL_AIOHTTP_REQUEST
+    if _ORIGINAL_AIOHTTP_REQUEST is not None:
+        return
+
+    pattern = re.compile(hijack_url_regex) if hijack_url_regex else None
+    _ORIGINAL_AIOHTTP_REQUEST = aiohttp.ClientSession._request
+
+    async def patched_request(self, method, url, **kwargs):
+        if pattern is None or pattern.search(str(url)):
+            payload = kwargs.get("json")
+            if isinstance(payload, dict) and "simulation" in payload:
+                simulation = payload.pop("simulation")
+                sampling_params = payload.setdefault("sampling_params", {})
+                custom_params = sampling_params.setdefault("custom_params", {})
+                custom_params["simulation"] = simulation
+                kwargs["json"] = payload
+        return await _ORIGINAL_AIOHTTP_REQUEST(self, method, url, **kwargs)
+
+    aiohttp.ClientSession._request = patched_request
+
+
+def simulator_calculate_metrics(*args, **kwargs):
+    """Prefer simulator metrics, with official client metrics as a fallback."""
+    client_metrics, output_lens = _ORIGINAL_CALCULATE_METRICS(*args, **kwargs)
+    output_dir = Path(
+        os.getenv("SGLANG_SIMULATOR_OUTPUT_DIR", "/tmp/sglang_simulator/output")
+    )
+    metrics_path = output_dir / "metrics.json"
+    if not metrics_path.is_file():
+        print(
+            f"Simulator metrics are not available at {metrics_path}; "
+            "showing client-side benchmark metrics."
+        )
+        return client_metrics, output_lens
+
+    backend_metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    metric_names = {field.name for field in fields(serving.BenchmarkMetrics)}
+    values = {
+        name: backend_metrics.get(name, getattr(client_metrics, name))
+        for name in metric_names
+    }
+    return serving.BenchmarkMetrics(**values), output_lens
+
+
+def simulator_run_benchmark(args: argparse.Namespace):
+    global _USE_TRACE_TIMESTAMPS
+    if args.backend != "sglang":
+        raise ValueError(
+            "sglang_simulator.simulation.bench_serving requires --backend sglang"
+        )
+    if args.dataset_name == "mooncake":
+        raise ValueError(
+            "Mooncake's multi-round scheduler is not supported by the simulator "
+            "benchmark adapter"
+        )
+    _USE_TRACE_TIMESTAMPS = getattr(args, "use_trace_timestamps", False)
+    args.profile = True
+    return _ORIGINAL_RUN_BENCHMARK(args)
+
+
+def _extract_simulator_args(argv: list[str]) -> tuple[str, list[str]]:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--simulator-mode",
+        choices=("offline", "blocking"),
+        default="offline",
+        help=argparse.SUPPRESS,
+    )
+    args, remaining = parser.parse_known_args(argv)
+    return args.simulator_mode, remaining
+
+
+def cli_main() -> None:
+    global _SIMULATOR_MODE
+    if any(argument in ("-h", "--help") for argument in sys.argv[1:]):
+        print(
+            "SGLang Simulator option: "
+            "--simulator-mode {offline,blocking} (default: offline)\n"
+        )
+    _SIMULATOR_MODE, remaining = _extract_simulator_args(sys.argv[1:])
+    sys.argv = [sys.argv[0], *remaining]
+
+    serving.get_request = simulator_get_request
+    serving.calculate_metrics = simulator_calculate_metrics
+    serving.run_benchmark = simulator_run_benchmark
+    install_aiohttp_json_hijack()
+
+    print(f"SGLang Simulator benchmark mode: {_SIMULATOR_MODE.upper()}")
+    serving.cli_main()
 
 
 if __name__ == "__main__":
-    warnings.warn(
-        "Use `python -m sglang.benchmark.serving` directly.",
-        FutureWarning,
-        stacklevel=1,
-    )
     cli_main()

@@ -28,31 +28,15 @@ def convert_rows(
         raise ValueError("the selection produced no requests")
 
     base_time = float(selected[0]["created_time"])
-    total = len(selected)
     converted = []
     for row in selected:
         created_time_ms = (float(row["created_time"]) - base_time) * 1000.0
-        output_len = int(row["output_length"])
         converted.append(
             {
                 "prompt": row["input_ids"],
                 "prompt_len": int(row["input_length"]),
-                "output_len": output_len,
+                "output_len": int(row["output_length"]),
                 "timestamp": created_time_ms,
-                "extra_request_body": {
-                    "rid": row.get("request_id", row.get("rid")),
-                    "sampling_params": {
-                        "temperature": 0,
-                        "max_new_tokens": output_len,
-                        "ignore_eos": True,
-                        "custom_params": {
-                            "simulation": {
-                                "created_time_ms": created_time_ms,
-                                "total_request": total,
-                            }
-                        },
-                    },
-                },
             }
         )
     return converted

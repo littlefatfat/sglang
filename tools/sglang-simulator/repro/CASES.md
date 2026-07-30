@@ -37,7 +37,10 @@ python3 -m sglang_simulator.simulation.sglang.launch_server \
 export HISIM_REPRO=/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro
 export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
 
-python3 -m sglang.benchmark.serving \
+export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim-case-cpu-random
+
+python3 -m sglang_simulator.simulation.bench_serving \
+  --simulator-mode blocking \
   --backend sglang \
   --base-url http://127.0.0.1:31501 \
   --model /nfs/Qwen/Qwen3-8B \
@@ -79,7 +82,10 @@ export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim-case-cpu-sharegpt
 export HISIM_REPRO=/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro
 export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
 
-python3 -m sglang.benchmark.serving \
+export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim-case-cpu-sharegpt
+
+python3 -m sglang_simulator.simulation.bench_serving \
+  --simulator-mode blocking \
   --backend sglang \
   --base-url http://127.0.0.1:31502 \
   --model /nfs/Qwen/Qwen3-8B \
@@ -115,12 +121,16 @@ export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim-case-cpu-autobench-offline
 export HISIM_REPRO=/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro
 export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
 
-python3 -m sglang.benchmark.serving \
+export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim-case-cpu-autobench-offline
+
+python3 -m sglang_simulator.simulation.bench_serving \
+  --simulator-mode offline \
   --backend sglang \
   --base-url http://127.0.0.1:31503 \
   --model /nfs/Qwen/Qwen3-8B \
   --dataset-name autobench \
   --dataset-path "${HISIM_REPRO}/workloads/trace.autobench.example.jsonl" \
+  --use-trace-timestamps \
   --num-prompts 3 \
   --warmup-requests 0 \
   --profile \
@@ -130,8 +140,8 @@ python3 "${HISIM_REPRO}/scripts/validate_result.py" \
   /tmp/hisim-case-cpu-autobench-offline --expected-requests 3
 ```
 
-OFFLINE 不增加 `--use-trace-timestamps`：客户端立即提交请求，服务端从
-`extra_request_body...simulation.created_time_ms` 恢复逻辑到达时间。
+Autobench 文件不包含内部 metadata。`--use-trace-timestamps` 让 adapter
+读取毫秒 timestamp；OFFLINE 客户端不会 sleep，而是在发送时自动注入逻辑到达时间。
 
 ### 3.2 BLOCKING
 
@@ -143,10 +153,10 @@ OFFLINE 不增加 `--use-trace-timestamps`：客户端立即提交请求，服�
 --base-url http://127.0.0.1:31504
 ```
 
-并在 benchmark 命令中增加：
+并把 benchmark adapter 模式修改为：
 
 ```text
---use-trace-timestamps
+--simulator-mode blocking
 ```
 
 BLOCKING 中客户端按 `timestamp` 等待，服务端同时 sleep forward 和可见的
@@ -182,12 +192,16 @@ python3 -m sglang_simulator.simulation.sglang.launch_server \
 export HISIM_REPRO=/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro
 export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
 
-python3 -m sglang.benchmark.serving \
+export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim-case-gpu-autobench
+
+python3 -m sglang_simulator.simulation.bench_serving \
+  --simulator-mode offline \
   --backend sglang \
   --base-url http://127.0.0.1:31505 \
   --model /nfs/Qwen/Qwen3-8B \
   --dataset-name autobench \
   --dataset-path "${HISIM_REPRO}/workloads/trace.autobench.example.jsonl" \
+  --use-trace-timestamps \
   --num-prompts 3 \
   --warmup-requests 0 \
   --profile \
@@ -202,7 +216,7 @@ kernel。实测结果为 `num_requests=3, completed=3`。
 
 ## 5. 一个 Python 脚本完成完整生命周期
 
-以下命令启动 CPU 服务、用官方 `sglang.benchmark.serving` 发送精确长度 Random
+以下命令启动 CPU 服务、用 simulator benchmark adapter 发送精确长度 Random
 流量、停止服务，并保留 metrics：
 
 ```bash
@@ -292,12 +306,16 @@ python3 -m sglang_simulator.simulation.sglang.launch_server \
 export HISIM_REPRO=/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro
 export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
 
-python3 -m sglang.benchmark.serving \
+export SGLANG_SIMULATOR_OUTPUT_DIR="${HISIM_OUT}"
+
+python3 -m sglang_simulator.simulation.bench_serving \
+  --simulator-mode offline \
   --backend sglang \
   --base-url "http://127.0.0.1:${HISIM_PORT}" \
   --model /nfs/deepseek-ai/DeepSeek-V4-Pro/ \
   --dataset-name autobench \
   --dataset-path /tmp/dsv4pro-5.autobench.jsonl \
+  --use-trace-timestamps \
   --num-prompts 5 \
   --warmup-requests 0 \
   --profile \
@@ -307,9 +325,9 @@ python3 "${HISIM_REPRO}/scripts/validate_result.py" \
   "${HISIM_OUT}" --expected-requests 5
 ```
 
-终端 B 不读取 simulator 的设备、时钟模式或输出目录变量；这些只由终端 A
-的服务进程读取。客户端发送节奏由 `--request-rate` 或
-`--use-trace-timestamps` 控制。
+终端 B 不读取 simulator 的设备变量。`--simulator-mode` 控制客户端是按真实时间
+pacing，还是生成逻辑时间；`SGLANG_SIMULATOR_OUTPUT_DIR` 只用于让客户端显示同一
+目录里的后端仿真指标，不影响打流语义。
 
 本次实测：
 

@@ -180,10 +180,12 @@ export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
 Random：
 
 Random/ShareGPT 的服务化 request-rate 示例把终端 A 设置为 `BLOCKING`；
-官方客户端始终按 `--request-rate` 实际发流。
+simulator benchmark adapter 复用官方数据集和请求实现，并按
+`--request-rate` 实际发流。
 
 ```bash
-python3 -m sglang.benchmark.serving \
+python3 -m sglang_simulator.simulation.bench_serving \
+  --simulator-mode blocking \
   --backend sglang \
   --base-url http://127.0.0.1:30000 \
   --model /nfs/Qwen/Qwen3-8B \
@@ -202,7 +204,8 @@ SGLang v0.5.16 的 random sampler 需要 `--dataset-path` 作为本地 prompt �
 ShareGPT：
 
 ```bash
-python3 -m sglang.benchmark.serving \
+python3 -m sglang_simulator.simulation.bench_serving \
+  --simulator-mode blocking \
   --backend sglang \
   --base-url http://127.0.0.1:30000 \
   --model /nfs/Qwen/Qwen3-8B \
@@ -216,24 +219,26 @@ python3 -m sglang.benchmark.serving \
 
 HiSim trace：
 
-下面是 OFFLINE 服务化回放，保持客户端环境为 `OFFLINE`。
+下面是 OFFLINE 服务化回放。Autobench 源文件只需标准字段，不包含
+`simulation` metadata。
 
 ```bash
-python3 -m sglang.benchmark.serving \
+python3 -m sglang_simulator.simulation.bench_serving \
+  --simulator-mode offline \
   --backend sglang \
   --base-url http://127.0.0.1:30000 \
   --model /nfs/Qwen/Qwen3-8B \
   --dataset-name autobench \
   --dataset-path /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/workloads/trace.autobench.example.jsonl \
+  --use-trace-timestamps \
   --num-prompts 3 \
   --warmup-requests 0 \
   --profile
 ```
 
 HiSim trace 直接使用官方 Autobench 格式，`timestamp` 固定为毫秒。
-OFFLINE 模式不增加 `--use-trace-timestamps`，客户端立即提交所有请求，
-服务端从 `simulation.created_time_ms` 恢复逻辑到达时间。BLOCKING 模式增加
-`--use-trace-timestamps`，由官方 `get_request()` 按 timestamp 实际等待。
+`--use-trace-timestamps` 选择 trace 时间轴：OFFLINE 立即提交请求，由 adapter
+自动注入逻辑到达时间；BLOCKING 则由客户端按 timestamp 实际等待。
 
 结果：
 

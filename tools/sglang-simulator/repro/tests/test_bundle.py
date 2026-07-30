@@ -47,10 +47,7 @@ def test_trace_contract():
     assert rows[0].timestamp == 0
     assert rows[2].timestamp == 200
     assert rows[0].prompt_len == len(rows[0].prompt)
-    simulation = rows[2].extra_request_body["sampling_params"]["custom_params"][
-        "simulation"
-    ]
-    assert simulation == {"created_time_ms": 200.0, "total_request": 3}
+    assert rows[2].extra_request_body == {}
 
 
 def test_inprocess_trace_uses_shared_trace_loader():

@@ -173,12 +173,15 @@ start_service \
   configs/qwen3-8b-h20/server_args.json \
   configs/qwen3-8b-h20/hisim.replay.json
 run_logged service-offline-trace \
-  python3 -m sglang.benchmark.serving \
+  env SGLANG_SIMULATOR_OUTPUT_DIR="${RESULT_ROOT}/service-offline-replay" \
+  python3 -m sglang_simulator.simulation.bench_serving \
+  --simulator-mode offline \
   --backend sglang \
   --base-url "http://127.0.0.1:${PORT}" \
   --model /nfs/Qwen/Qwen3-8B \
   --dataset-name autobench \
   --dataset-path workloads/trace.autobench.example.jsonl \
+  --use-trace-timestamps \
   --num-prompts 3 \
   --profile \
   --warmup-requests 0 \
@@ -196,7 +199,9 @@ start_service \
   configs/qwen3-8b-h20/hisim.aic.json
 
 run_logged terminal-random \
-  python3 -m sglang.benchmark.serving \
+  env SGLANG_SIMULATOR_OUTPUT_DIR="${RESULT_ROOT}/service-blocking-aic" \
+  python3 -m sglang_simulator.simulation.bench_serving \
+  --simulator-mode blocking \
   --backend sglang \
   --base-url "http://127.0.0.1:${PORT}" \
   --model /nfs/Qwen/Qwen3-8B \
@@ -212,7 +217,9 @@ run_logged terminal-random \
 validate service-blocking-aic 2
 
 run_logged terminal-sharegpt \
-  python3 -m sglang.benchmark.serving \
+  env SGLANG_SIMULATOR_OUTPUT_DIR="${RESULT_ROOT}/service-blocking-aic" \
+  python3 -m sglang_simulator.simulation.bench_serving \
+  --simulator-mode blocking \
   --backend sglang \
   --base-url "http://127.0.0.1:${PORT}" \
   --model /nfs/Qwen/Qwen3-8B \

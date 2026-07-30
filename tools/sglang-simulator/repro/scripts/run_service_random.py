@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Start HiSim, run official random serving benchmark, stop, keep metrics."""
+"""Start the simulator, run its random serving benchmark, stop, keep metrics."""
 
 import argparse
 import os
@@ -22,11 +22,14 @@ def benchmark_command(
     input_len: int,
     output_len: int,
     request_rate: float,
+    mode: str = "BLOCKING",
 ) -> list[str]:
     return [
         sys.executable,
         "-m",
-        "sglang.benchmark.serving",
+        "sglang_simulator.simulation.bench_serving",
+        "--simulator-mode",
+        mode.lower(),
         "--backend",
         "sglang",
         "--base-url",
@@ -148,9 +151,13 @@ def main() -> None:
                     args.input_len,
                     args.output_len,
                     args.request_rate,
+                    args.mode,
                 ),
                 check=True,
-                env=os.environ.copy(),
+                env={
+                    **os.environ,
+                    "SGLANG_SIMULATOR_OUTPUT_DIR": str(output_dir),
+                },
             )
             metrics = output_dir / "metrics.json"
             if not metrics.is_file():

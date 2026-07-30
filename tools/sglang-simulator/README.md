@@ -44,11 +44,13 @@ python3 -m sglang_simulator.simulation.sglang.launch_server \
 #### Run the Simulation Benchmark
 - **Autobench trace replay**:
   ```bash
-  python3 -m sglang.benchmark.serving \
+  python3 -m sglang_simulator.simulation.bench_serving \
+      --simulator-mode offline \
       --backend sglang \
       --model "${MODEL_PATH}" \
       --dataset-name autobench \
       --dataset-path "${HISIM_ROOT}/repro/workloads/trace.autobench.example.jsonl" \
+      --use-trace-timestamps \
       --num-prompts 3 \
       --warmup-requests 0 \
       --profile
@@ -57,8 +59,8 @@ python3 -m sglang_simulator.simulation.sglang.launch_server \
 - **Synthetic random workload**:
   Start the simulator in `BLOCKING` mode for service-side request-rate traffic.
   ```bash
-  export SGLANG_SIMULATOR_OUTPUT_MODE=BLOCKING
-  python3 -m sglang.benchmark.serving \
+  python3 -m sglang_simulator.simulation.bench_serving \
+      --simulator-mode blocking \
       --warmup-requests 0 \
       --model "${MODEL_PATH}" \
       --dataset-name random \
