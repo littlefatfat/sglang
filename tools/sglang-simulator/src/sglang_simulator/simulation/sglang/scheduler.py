@@ -31,6 +31,10 @@ from sglang_simulator.utils.json import CustomJsonEncoder
 logger = get_logger("sgl_simulator")
 
 
+def simulation_mode_log_message(mode: SimulationMode) -> str:
+    return f"HiSim simulation mode: {mode.value}"
+
+
 def effective_l2_load_delay(
     load_duration: float,
     last_inference_duration: float,
@@ -288,6 +292,7 @@ class C_SchedulerHook(BaseHook):
             return original_event_loop_normal(self, *args, **kwargs)
 
         def wrapped_init(self, *args, **kwargs):
+            logger.info(simulation_mode_log_message(C_SchedulerHook.SIM_MODE))
             # Disable overlap schedule
             server_args = get_obj_from_args(
                 "sglang.srt.server_args.ServerArgs", *args, **kwargs

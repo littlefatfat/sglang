@@ -14,6 +14,7 @@ from sglang_simulator.simulation.manager.config import ConfigManager
 from sglang_simulator.simulation.sglang.scheduler import (
     block_on_l2_load,
     effective_l2_load_delay,
+    simulation_mode_log_message,
 )
 from sglang_simulator.simulation.types import RequestStats, SimulationMode
 from sglang_simulator.simulation.utils import (
@@ -220,6 +221,11 @@ def test_blocking_l2_load_sleeps_but_offline_does_not(monkeypatch):
     assert sleeps == [0.20]
     assert block_on_l2_load(SimulationMode.OFFLINE, 0.20) == 0.0
     assert sleeps == [0.20]
+
+
+@pytest.mark.parametrize("mode", [SimulationMode.OFFLINE, SimulationMode.BLOCKING])
+def test_simulation_mode_log_message(mode):
+    assert simulation_mode_log_message(mode) == f"HiSim simulation mode: {mode.value}"
 
 
 def test_ignore_cpu_overhead_defaults_to_0714_semantics(monkeypatch, tmp_path):
