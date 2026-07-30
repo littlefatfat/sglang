@@ -27,6 +27,19 @@ def calc_kv_cache_per_layer_elems(
 def estimate_kv_cache_pool_capacity(
     model: ModelInfo, device: AcceleratorInfo, scheduler_config: SchedulerConfig
 ) -> int:
+    # Simulation capacity must come from the declared target accelerator. Do
+    # not fall back to the local CUDA device: doing so would make an identical
+    # simulation config host-dependent and could silently simulate the wrong
+    # hardware.
+    if device.hbm_capacity_gb is None:
+        raise ValueError(
+            "Cannot estimate max_total_num_tokens: the simulated accelerator "
+            f"{device.name!r} has no hbm_capacity_gb. Add the accelerator to "
+            "the simulator hardware registry, provide hbm_capacity_gb in the "
+            "simulation config, or set max_total_tokens explicitly. The "
+            "simulator never falls back to the local GPU memory capacity."
+        )
+
     perf_model = get_perf_model(scheduler_config, model)
     weights = 0
     for op in perf_model.context_ops:
@@ -183,6 +196,8 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
     total_host_hit_tokens = 0
     total_storage_hit_tokens = 0
     queue_durs = []
+    dispatch_wait_durs = []
+    arrival_to_prefill_durs = []
     output_token_timestamps = []
     concurrency_events = []
     for req in requests:
@@ -190,7 +205,12 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
             continue
         completed += 1
         ttfts.append(req.gen_token_latencies[0])
+        # Keep the 0714 queue definition: time in SGLang waiting_queue before
+        # first prefill admission. The additional metrics expose the preceding
+        # dispatcher pickup delay and the full arrival-to-prefill duration.
         queue_durs.append(req.queue_end - req.queue_start)
+        dispatch_wait_durs.append(req.queue_start - req.created_time)
+        arrival_to_prefill_durs.append(req.queue_end - req.created_time)
         if len(req.gen_token_latencies) > 1:
             # output length > 1
             tpots.append(np.mean(req.gen_token_latencies[1:]))
@@ -268,6 +288,12 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
         "p95_ttft_ms": np.percentile(ttfts or 0, 95) * 1000,
         "p99_ttft_ms": np.percentile(ttfts or 0, 99) * 1000,
         "mean_queue_ms": max(np.mean(queue_durs or 0), 0.0) * 1000,
+        "mean_dispatch_wait_ms": (
+            max(np.mean(dispatch_wait_durs or 0), 0.0) * 1000
+        ),
+        "mean_arrival_to_prefill_ms": (
+            max(np.mean(arrival_to_prefill_durs or 0), 0.0) * 1000
+        ),
         "mean_tpot_ms": np.mean(tpots or 0) * 1000,
         "median_tpot_ms": np.median(tpots or 0) * 1000,
         "std_tpot_ms": np.std(tpots or 0) * 1000,

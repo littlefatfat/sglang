@@ -177,6 +177,8 @@ benchmark/mmlu/data.tar
 benchmark/llava_bench/images
 benchmark/llava_bench/mme_pack
 *.jsonl
+!tools/sglang-simulator/repro/workloads/trace.autobench.load.example.jsonl
+!tools/sglang-simulator/repro/workloads/trace.autobench.replay.example.jsonl
 tmp*.txt
 /tmp/
 

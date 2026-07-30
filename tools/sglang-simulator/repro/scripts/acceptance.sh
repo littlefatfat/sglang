@@ -108,7 +108,7 @@ run_logged inprocess-replay \
   --sim-config configs/qwen3-8b-h20/simulator.replay.json \
   --mode OFFLINE \
   --workload trace \
-  --dataset workloads/trace.autobench.example.jsonl \
+  --dataset workloads/trace.autobench.replay.example.jsonl \
   --output-dir "${RESULT_ROOT}/inprocess-replay"
 validate inprocess-replay 3
 
@@ -144,8 +144,9 @@ run_logged qwen3-32b-aic \
   --mode OFFLINE \
   --workload trace \
   --dataset workloads/trace.autobench.example.jsonl \
+  --num-prompts 100 \
   --output-dir "${RESULT_ROOT}/qwen3-32b-aic"
-validate qwen3-32b-aic 3
+validate qwen3-32b-aic 100
 
 run_logged glm5-p-aic \
   python3 scripts/run_inprocess.py \
@@ -154,8 +155,9 @@ run_logged glm5-p-aic \
   --mode OFFLINE \
   --workload trace \
   --dataset workloads/trace.autobench.example.jsonl \
+  --num-prompts 100 \
   --output-dir "${RESULT_ROOT}/glm5-p-aic"
-validate glm5-p-aic 3
+validate glm5-p-aic 100
 
 run_logged dsv4pro-p-ml \
   env SGLANG_ENABLE_UNIFIED_RADIX_TREE=1 \
@@ -165,8 +167,9 @@ run_logged dsv4pro-p-ml \
   --mode OFFLINE \
   --workload trace \
   --dataset workloads/trace.autobench.example.jsonl \
+  --num-prompts 100 \
   --output-dir "${RESULT_ROOT}/dsv4pro-p-ml"
-validate dsv4pro-p-ml 3
+validate dsv4pro-p-ml 100
 
 start_service \
   service-offline-replay OFFLINE \
@@ -180,7 +183,7 @@ run_logged service-offline-trace \
   --base-url "http://127.0.0.1:${PORT}" \
   --model /nfs/Qwen/Qwen3-8B \
   --dataset-name autobench \
-  --dataset-path workloads/trace.autobench.example.jsonl \
+  --dataset-path workloads/trace.autobench.replay.example.jsonl \
   --use-trace-timestamps \
   --num-prompts 3 \
   --profile \

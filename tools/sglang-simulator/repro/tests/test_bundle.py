@@ -40,14 +40,17 @@ def test_trace_contract():
 
     rows = sample_autobench_requests(
         dataset_path=str(ROOT / "workloads/trace.autobench.example.jsonl"),
-        num_requests=3,
+        num_requests=100,
         tokenizer=None,
     )
-    assert len(rows) == 3
+    assert len(rows) == 100
     assert rows[0].timestamp == 0
-    assert rows[2].timestamp == 200
-    assert rows[0].prompt_len == len(rows[0].prompt)
-    assert rows[2].extra_request_body == {}
+    assert rows[-1].timestamp == 149599.82
+    assert all(row.prompt_len == len(row.prompt) for row in rows)
+    assert min(row.prompt_len for row in rows) == 128
+    assert max(row.prompt_len for row in rows) == 512
+    assert rows[1].prompt[:128] == rows[0].prompt
+    assert all(row.extra_request_body == {} for row in rows)
 
 
 def test_inprocess_trace_uses_shared_trace_loader():
@@ -57,16 +60,14 @@ def test_inprocess_trace_uses_shared_trace_loader():
         name="trace",
         model_path="unused",
         dataset_path=str(ROOT / "workloads/trace.autobench.example.jsonl"),
-        num_prompts=3,
+        num_prompts=100,
         input_len=1,
         output_len=1,
         timestamp_scale=1000.0,
     )
-    assert [row.custom_params["created_time"] for row in dataset] == [
-        0,
-        0.1,
-        0.2,
-    ]
+    assert len(dataset) == 100
+    assert dataset[0].custom_params["created_time"] == 0
+    assert round(dataset[-1].custom_params["created_time"], 6) == 149.59982
 
 
 def test_compare_batch_summary():

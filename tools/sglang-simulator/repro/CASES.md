@@ -131,13 +131,13 @@ python3 -m sglang_simulator.simulation.bench_serving \
   --dataset-name autobench \
   --dataset-path "${SGLANG_SIMULATOR_REPRO}/workloads/trace.autobench.example.jsonl" \
   --use-trace-timestamps \
-  --num-prompts 3 \
+  --num-prompts 100 \
   --warmup-requests 0 \
   --profile \
   --disable-tqdm
 
 python3 "${SGLANG_SIMULATOR_REPRO}/scripts/validate_result.py" \
-  /tmp/sglang-simulator-case-cpu-autobench-offline --expected-requests 3
+  /tmp/sglang-simulator-case-cpu-autobench-offline --expected-requests 100
 ```
 
 Autobench 文件不包含内部 metadata。`--use-trace-timestamps` 让 adapter
@@ -160,7 +160,8 @@ Autobench 文件不包含内部 metadata。`--use-trace-timestamps` 让 adapter
 ```
 
 BLOCKING 中客户端按 `timestamp` 等待，服务端同时 sleep forward 和可见的
-L2→L1 load；OFFLINE 只推进相同的逻辑时钟。
+L2→L1 load；OFFLINE 只推进相同的逻辑时钟。 100 条 trace 的到达时间跨度约 149.6 秒，
+因此 BLOCKING 用例也会至少等待这段时间。
 
 ## 4. GPU 服务 + Triton page allocator
 
@@ -200,7 +201,7 @@ python3 -m sglang_simulator.simulation.bench_serving \
   --base-url http://127.0.0.1:31505 \
   --model /nfs/Qwen/Qwen3-8B \
   --dataset-name autobench \
-  --dataset-path "${SGLANG_SIMULATOR_REPRO}/workloads/trace.autobench.example.jsonl" \
+  --dataset-path "${SGLANG_SIMULATOR_REPRO}/workloads/trace.autobench.replay.example.jsonl" \
   --use-trace-timestamps \
   --num-prompts 3 \
   --warmup-requests 0 \
@@ -211,8 +212,8 @@ python3 "${SGLANG_SIMULATOR_REPRO}/scripts/validate_result.py" \
   /tmp/sglang-simulator-case-gpu-autobench --expected-requests 3
 ```
 
-该用例加载 dummy weights，不执行真实 forward；page 分配实际走 GPU Triton
-kernel。实测结果为 `num_requests=3, completed=3`。
+该用例使用 3 条 replay 专用 fixture，加载 dummy weights，不执行真实 forward；
+page 分配实际走 GPU Triton kernel。实测结果为 `num_requests=3, completed=3`。
 
 ## 5. 一个 Python 脚本完成完整生命周期
 

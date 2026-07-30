@@ -231,7 +231,7 @@ python3 -m sglang_simulator.simulation.bench_serving \
   --dataset-name autobench \
   --dataset-path /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/workloads/trace.autobench.example.jsonl \
   --use-trace-timestamps \
-  --num-prompts 3 \
+  --num-prompts 100 \
   --warmup-requests 0 \
   --profile
 ```
@@ -257,7 +257,7 @@ python3 "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-sim
   --server-args /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/configs/qwen3-8b-h20/server_args.json \
   --sim-config /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/configs/qwen3-8b-h20/simulator.replay.json \
   --workload trace \
-  --dataset /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/workloads/trace.autobench.example.jsonl \
+  --dataset /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro/workloads/trace.autobench.replay.example.jsonl \
   --output-dir /tmp/sglang-simulator/qwen3-8b-inprocess
 ```
 
@@ -493,6 +493,15 @@ bash "/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simula
 | `result.iteration.jsonl` | 每 step batch composition、forward/load/backup 耗时 |
 | `server_args.json` | 本次实际服务配置 |
 | `sim_config.json` | 本次实际硬件和 predictor 配置 |
+
+排队相关指标按时间轴拆分：`mean_dispatch_wait_ms` 是请求从逻辑到达到被
+scheduler dispatcher 取走的等待，`mean_queue_ms` 保留 0714 定义，表示请求进入
+SGLang waiting queue 后到首次 prefill admission 的等待；
+`mean_arrival_to_prefill_ms` 是前两段之和。
+
+TODO(metrics-semantics)：统一审计并完善所有汇总指标的定义，包括公式、起止事件、
+时钟来源、OFFLINE/BLOCKING 差异、0714 基线兼容性、公版 serving benchmark
+对应关系，以及 `mean_exec_ms` 是否应扣除完整 arrival-to-prefill 时间。
 
 第一版 `metrics.json` 只保留稳定的请求、吞吐、命中率和延迟指标。
 L2/L3、拓扑以及 step 耗时拆分暂不进入汇总指标；需要诊断时读取

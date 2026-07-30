@@ -21,7 +21,9 @@ from sglang_simulator.simulation.utils import (
     calc_input_token_metrics,
     calc_iteration_metrics,
     calc_metrics,
+    estimate_kv_cache_pool_capacity,
 )
+from sglang_simulator.spec.accelerator import AcceleratorInfo
 
 
 def test_alloc_extend_cpu_preserves_page_layout_across_sequences():
@@ -77,6 +79,20 @@ def test_input_token_metrics_keep_accounting_exact():
     assert metrics["new_input_write_throughput_tokens_per_s"] == 60
 
 
+def test_capacity_estimation_never_falls_back_to_local_gpu():
+    accelerator = AcceleratorInfo(
+        name="unknown-accelerator",
+        vendor=None,
+        hbm_capacity_gb=None,
+        hbm_bandwidth_gb=None,
+    )
+
+    # Model and scheduler config deliberately stay unset: missing simulated
+    # HBM must fail before any predictor setup or host-device probing occurs.
+    with pytest.raises(ValueError, match="never falls back to the local GPU"):
+        estimate_kv_cache_pool_capacity(None, accelerator, None)
+
+
 def test_request_metrics_preserve_prefix_and_tier_hit_ratios(monkeypatch):
     class FakeConfigManager:
         @staticmethod
@@ -105,6 +121,7 @@ def test_request_metrics_preserve_prefix_and_tier_hit_ratios(monkeypatch):
             final_device_hit_len=60,
             final_host_hit_len=20,
             final_storage_hit_len=5,
+            created_time=-0.01,
             queue_start=0.00,
             queue_end=0.01,
             last_event_time=0.20,
@@ -117,6 +134,7 @@ def test_request_metrics_preserve_prefix_and_tier_hit_ratios(monkeypatch):
             final_device_hit_len=40,
             final_host_hit_len=10,
             final_storage_hit_len=0,
+            created_time=0.03,
             queue_start=0.05,
             queue_end=0.07,
             last_event_time=0.50,
@@ -134,6 +152,8 @@ def test_request_metrics_preserve_prefix_and_tier_hit_ratios(monkeypatch):
     assert metrics["kv_cache_storage_hit_ratio"] == pytest.approx(0.025)
     assert metrics["mean_ttft_ms"] == pytest.approx(150)
     assert metrics["mean_queue_ms"] == pytest.approx(15)
+    assert metrics["mean_dispatch_wait_ms"] == pytest.approx(15)
+    assert metrics["mean_arrival_to_prefill_ms"] == pytest.approx(30)
     deferred_metrics = {
         "L3_write_throughput_tokens_per_s",
         "L3_write_throughput_GB_per_s",
