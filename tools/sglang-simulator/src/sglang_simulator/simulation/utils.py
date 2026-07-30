@@ -159,8 +159,12 @@ def calc_iteration_metrics(
 ) -> dict:
     """Aggregate per-iteration simulator latency into result metrics."""
     iterations = len(iteration_stats)
-    forward_s = sum(float(item.get("forward_latency", 0) or 0) for item in iteration_stats)
-    l2_load_s = sum(float(item.get("l2_load_latency", 0) or 0) for item in iteration_stats)
+    forward_s = sum(
+        float(item.get("forward_latency", 0) or 0) for item in iteration_stats
+    )
+    l2_load_s = sum(
+        float(item.get("l2_load_latency", 0) or 0) for item in iteration_stats
+    )
     cpu_s = sum(float(item.get("cpu_overhead", 0) or 0) for item in iteration_stats)
     total_s = forward_s + l2_load_s + cpu_s
     avg_iter_latency_ms = total_s / iterations * 1000 if iterations else 0
@@ -288,9 +292,7 @@ def calc_metrics(requests: list[RequestStats]) -> dict:
         "p95_ttft_ms": np.percentile(ttfts or 0, 95) * 1000,
         "p99_ttft_ms": np.percentile(ttfts or 0, 99) * 1000,
         "mean_queue_ms": max(np.mean(queue_durs or 0), 0.0) * 1000,
-        "mean_dispatch_wait_ms": (
-            max(np.mean(dispatch_wait_durs or 0), 0.0) * 1000
-        ),
+        "mean_dispatch_wait_ms": (max(np.mean(dispatch_wait_durs or 0), 0.0) * 1000),
         "mean_arrival_to_prefill_ms": (
             max(np.mean(arrival_to_prefill_durs or 0), 0.0) * 1000
         ),

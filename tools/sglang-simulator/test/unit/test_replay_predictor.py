@@ -1,7 +1,6 @@
 import json
 
 import pytest
-
 from sglang_simulator.time_predictor import ScheduleBatch, ScheduleRequest
 from sglang_simulator.time_predictor.replay import ReplayTimePredictor
 

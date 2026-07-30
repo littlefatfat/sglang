@@ -2,12 +2,13 @@ import random
 from pathlib import Path
 
 import numpy as np
+from sglang_simulator.dataset import GenericRequest, SimpleDataset
+from transformers import AutoTokenizer
+
 from sglang.benchmark.datasets.autobench import sample_autobench_requests
 from sglang.benchmark.datasets.common import DatasetRow
 from sglang.benchmark.datasets.random import sample_random_requests
 from sglang.benchmark.datasets.sharegpt import sample_sharegpt_requests
-from sglang_simulator.dataset import GenericRequest, SimpleDataset
-from transformers import AutoTokenizer
 
 
 def _to_simulator_dataset(

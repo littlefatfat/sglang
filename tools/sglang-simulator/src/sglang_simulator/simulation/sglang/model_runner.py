@@ -166,9 +166,9 @@ class C_ModelRunnerHook(BaseHook):
             # And the scheduler only matters about whether the token_to_kv_pool can be allocated enough space for the requests,
             # so the pool's implementation is not important and can be replaced with `MHATokenToKVPool` that only simulates the allocation logic.
             if self.is_hybrid_swa:
-                assert self.page_size == 256, (
-                    "In paged swa mode, page_size must be 256."
-                )
+                assert (
+                    self.page_size == 256
+                ), "In paged swa mode, page_size must be 256."
                 from sglang.srt.mem_cache.deepseek_v4_memory_pool import (
                     DeepSeekV4TokenToKVPool,
                 )

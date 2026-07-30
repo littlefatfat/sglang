@@ -94,7 +94,9 @@ def get_perf_model(
         moe_quant_mode=(
             getattr(MoEQuantMode, sched_config.moe_quant_mode_override)
             if sched_config.moe_quant_mode_override
-            else MAP_DTYPE_TO_MoEQuantMode.get(sched_config.data_type, MoEQuantMode.bfloat16)
+            else MAP_DTYPE_TO_MoEQuantMode.get(
+                sched_config.data_type, MoEQuantMode.bfloat16
+            )
         ),
         kvcache_quant_mode=MAP_DTYPE_TO_KVCacheQuantMode.get(
             sched_config.kv_cache_data_type, KVCacheQuantMode.bfloat16
@@ -102,12 +104,16 @@ def get_perf_model(
         fmha_quant_mode=(
             getattr(FMHAQuantMode, sched_config.fmha_quant_mode_override)
             if sched_config.fmha_quant_mode_override
-            else MAP_DTYPE_TO_FMHAQuantMode.get(sched_config.kv_cache_data_type, FMHAQuantMode.bfloat16)
+            else MAP_DTYPE_TO_FMHAQuantMode.get(
+                sched_config.kv_cache_data_type, FMHAQuantMode.bfloat16
+            )
         ),
         comm_quant_mode=(
             getattr(CommQuantMode, sched_config.comm_quant_mode_override)
             if sched_config.comm_quant_mode_override
-            else MAP_DTYPE_TO_CommQunatMode.get(sched_config.data_type, CommQuantMode.half)
+            else MAP_DTYPE_TO_CommQunatMode.get(
+                sched_config.data_type, CommQuantMode.half
+            )
         ),
         workload_distribution=workload_distribution,
     )

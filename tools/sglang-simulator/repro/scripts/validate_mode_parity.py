@@ -3,7 +3,6 @@ import argparse
 import json
 from pathlib import Path
 
-
 EXACT_METRICS = (
     "num_requests",
     "completed",
@@ -36,11 +35,7 @@ def read_json(path: Path) -> dict:
 
 
 def read_jsonl(path: Path) -> list[dict]:
-    return [
-        json.loads(line)
-        for line in open(path, encoding="utf-8")
-        if line.strip()
-    ]
+    return [json.loads(line) for line in open(path, encoding="utf-8") if line.strip()]
 
 
 def request_signature(row: dict) -> tuple:
@@ -90,8 +85,7 @@ def main() -> None:
     cpu_delta_ms = (
         sum(
             abs(
-                float(left.get("cpu_overhead", 0))
-                - float(right.get("cpu_overhead", 0))
+                float(left.get("cpu_overhead", 0)) - float(right.get("cpu_overhead", 0))
             )
             for left, right in zip(inprocess_iterations, service_iterations)
         )

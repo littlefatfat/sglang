@@ -9,11 +9,11 @@ sim_config.json usage:
         "database_path": "/path/to/latency_model.pkl"
     }
 """
+
 import math
 import os
 
 import joblib
-
 from sglang_simulator.simulation.types import SchedulerConfig
 from sglang_simulator.spec.accelerator import AcceleratorInfo
 from sglang_simulator.spec.model import ModelInfo
@@ -40,9 +40,16 @@ class MLTimePredictor(InferTimePredictor):
     # as it exposes sklearn-compatible predict([[18 features]]) -> [seconds].
 
     FEATURE_NAMES = [
-        "batch_size", "sum_extend", "max_extend", "min_extend",
-        "sum_past", "max_past", "min_past",
-        "sum_extend_x_past", "sum_extend_squared", "sum_past_squared",
+        "batch_size",
+        "sum_extend",
+        "max_extend",
+        "min_extend",
+        "sum_past",
+        "max_past",
+        "min_past",
+        "sum_extend_x_past",
+        "sum_extend_squared",
+        "sum_past_squared",
         "sum_attn_flops",
         "sum_extend_x_max_past",
         "log1p_sum_past",
@@ -99,7 +106,10 @@ class MLTimePredictor(InferTimePredictor):
         self._latency_scale = float(latency_scale)
         logger.info(
             "MLTimePredictor loaded from %s (model=%s, n_features=%d, latency_scale=%.4f)",
-            database_path, type(self._model).__name__, len(self._features), self._latency_scale,
+            database_path,
+            type(self._model).__name__,
+            len(self._features),
+            self._latency_scale,
         )
 
     def predict_infer_time(self, batch: ScheduleBatch) -> float:
@@ -110,18 +120,28 @@ class MLTimePredictor(InferTimePredictor):
         pasts = [req.past_kv_length for req in batch.reqs]
 
         bs = len(exts)
-        sum_e = sum(exts); sum_p = sum(pasts)
+        sum_e = sum(exts)
+        sum_p = sum(pasts)
         sum_ep = sum(e * p for e, p in zip(exts, pasts))
         sum_e2 = sum(e * e for e in exts)
         sum_p2 = sum(p * p for p in pasts)
         sum_attn = sum(e * (p + e / 2) for e, p in zip(exts, pasts))
-        max_e = max(exts); max_p = max(pasts)
-        min_e = min(exts); min_p = min(pasts)
+        max_e = max(exts)
+        max_p = max(pasts)
+        min_e = min(exts)
+        min_p = min(pasts)
 
         feats = [
-            bs, sum_e, max_e, min_e,
-            sum_p, max_p, min_p,
-            sum_ep, sum_e2, sum_p2,
+            bs,
+            sum_e,
+            max_e,
+            min_e,
+            sum_p,
+            max_p,
+            min_p,
+            sum_ep,
+            sum_e2,
+            sum_p2,
             sum_attn,
             sum_e * max_p,
             math.log1p(sum_p),

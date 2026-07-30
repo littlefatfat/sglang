@@ -1,5 +1,4 @@
 import pytest
-
 from sglang_simulator.simulation.types import RequestStats
 from sglang_simulator.simulation.utils import calc_metrics
 

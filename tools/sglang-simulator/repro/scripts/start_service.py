@@ -16,9 +16,7 @@ def main() -> None:
     parser.add_argument("--output-dir", required=True)
     args = parser.parse_args()
 
-    configure_environment(
-        args.sim_config, args.output_dir, args.mode, args.device
-    )
+    configure_environment(args.sim_config, args.output_dir, args.mode, args.device)
 
     from sglang_simulator.simulation.sglang.hook_bootstrap import (
         install_simulator_hooks,

@@ -4,13 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 import torch
-
+from sglang_simulator.simulation.manager.config import ConfigManager
 from sglang_simulator.simulation.manager.state import StateManager
 from sglang_simulator.simulation.sglang.mem_cache_allocator import (
     alloc_decode_cpu,
     alloc_extend_cpu,
 )
-from sglang_simulator.simulation.manager.config import ConfigManager
 from sglang_simulator.simulation.sglang.scheduler import (
     block_on_l2_load,
     effective_l2_load_delay,
@@ -297,7 +296,10 @@ def test_blocking_l2_load_sleeps_but_offline_does_not(monkeypatch):
 
 @pytest.mark.parametrize("mode", [SimulationMode.OFFLINE, SimulationMode.BLOCKING])
 def test_simulation_mode_log_message(mode):
-    assert simulation_mode_log_message(mode) == f"SGLang Simulator simulation mode: {mode.value}"
+    assert (
+        simulation_mode_log_message(mode)
+        == f"SGLang Simulator simulation mode: {mode.value}"
+    )
 
 
 def test_ignore_cpu_overhead_defaults_to_0714_semantics(monkeypatch, tmp_path):

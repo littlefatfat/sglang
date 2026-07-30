@@ -16,9 +16,7 @@ def test_predictor_path_resolves_from_sim_config_ancestor(tmp_path, monkeypatch)
     monkeypatch.chdir(unrelated_cwd)
     monkeypatch.setattr(Envs, "config_path", classmethod(lambda cls: str(config_path)))
 
-    resolved = ConfigManager.resolve_config_relative_path(
-        "workloads/replay.json"
-    )
+    resolved = ConfigManager.resolve_config_relative_path("workloads/replay.json")
     assert resolved == str(predictor_path)
 
 

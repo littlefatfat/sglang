@@ -25,6 +25,7 @@ sim_config.json usage:
         "miss_fallback_seconds": 0.0  # used only when strategy=="zero"
     }
 """
+
 import json
 import math
 import os
@@ -90,7 +91,9 @@ class ReplayTimePredictor(InferTimePredictor):
         with open(database_path) as f:
             self._table = json.load(f)
         if miss_strategy not in ("zero", "knn"):
-            raise ValueError(f"miss_strategy must be 'zero' or 'knn', got {miss_strategy!r}")
+            raise ValueError(
+                f"miss_strategy must be 'zero' or 'knn', got {miss_strategy!r}"
+            )
         self._miss_strategy = miss_strategy
         self._miss_fallback = float(miss_fallback_seconds)
         self._miss_knn_k = int(miss_knn_k)
@@ -102,14 +105,18 @@ class ReplayTimePredictor(InferTimePredictor):
             logger.info(
                 "ReplayTimePredictor loaded %d unique compositions from %s "
                 "(miss_strategy=knn, k=%d)",
-                len(self._table), database_path, self._miss_knn_k,
+                len(self._table),
+                database_path,
+                self._miss_knn_k,
             )
         else:
             self._knn_feats = None
             logger.info(
                 "ReplayTimePredictor loaded %d unique compositions from %s "
                 "(miss_strategy=zero, fallback=%.4fs)",
-                len(self._table), database_path, self._miss_fallback,
+                len(self._table),
+                database_path,
+                self._miss_fallback,
             )
 
     def _prep_knn_index(self):
@@ -139,14 +146,18 @@ class ReplayTimePredictor(InferTimePredictor):
 
     def _knn_predict(self, query_feat):
         """k nearest neighbors over z-scored 3-D shape feature, simple mean."""
-        qz = tuple((query_feat[d] - self._knn_mean[d]) / self._knn_std[d] for d in range(3))
+        qz = tuple(
+            (query_feat[d] - self._knn_mean[d]) / self._knn_std[d] for d in range(3)
+        )
         # compute squared distance to every table entry; pick smallest k
         # n ≤ ~3K so O(n) per query is fine; sim only calls on misses
         dists = []
         for i, f in enumerate(self._knn_feats):
-            fz = ((f[0] - self._knn_mean[0]) / self._knn_std[0],
-                  (f[1] - self._knn_mean[1]) / self._knn_std[1],
-                  (f[2] - self._knn_mean[2]) / self._knn_std[2])
+            fz = (
+                (f[0] - self._knn_mean[0]) / self._knn_std[0],
+                (f[1] - self._knn_mean[1]) / self._knn_std[1],
+                (f[2] - self._knn_mean[2]) / self._knn_std[2],
+            )
             d2 = (fz[0] - qz[0]) ** 2 + (fz[1] - qz[1]) ** 2 + (fz[2] - qz[2]) ** 2
             dists.append((d2, i))
         dists.sort(key=lambda t: t[0])
@@ -158,9 +169,9 @@ class ReplayTimePredictor(InferTimePredictor):
             return 0.0
         extends = [req.extend_length for req in batch.reqs]
         pasts = [req.past_kv_length for req in batch.reqs]
-        key = json.dumps(sorted(
-            [req.extend_length, req.past_kv_length] for req in batch.reqs
-        ))
+        key = json.dumps(
+            sorted([req.extend_length, req.past_kv_length] for req in batch.reqs)
+        )
         v = self._table.get(key)
         if v is None:
             self._misses += 1

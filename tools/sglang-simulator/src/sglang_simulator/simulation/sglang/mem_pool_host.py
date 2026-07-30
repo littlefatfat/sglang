@@ -288,7 +288,7 @@ class C_DeepSeekV4PagedHostPoolHook(BaseHook):
             else:
                 # return self.size_per_token
                 raise ValueError(
-                    f"[DeepSeekV4PagedHostPool] unsupport pool name: {self.pool_name}"
+                    f"[DeepSeekV4PagedHostPool] unsupported pool name: {self.pool_name}"
                 )
 
         target.__init__ = wrapped_init
@@ -411,7 +411,7 @@ class C_DeepSeekV4StateHostPoolHook(BaseHook):
             else:
                 # return self.size_per_token
                 raise ValueError(
-                    f"[DeepSeekV4StateHostPool] unsupport pool name: {self.pool_name}"
+                    f"[DeepSeekV4StateHostPool] unsupported pool name: {self.pool_name}"
                 )
 
         target.__init__ = wrapped_init

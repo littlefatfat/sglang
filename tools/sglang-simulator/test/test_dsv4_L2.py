@@ -39,7 +39,9 @@ def test_benchmark_sglang():
     max_id = 10000
 
     input_length_1 = 2000
-    input_ids_1 = [3001] * 1024 + [randint(min_id, max_id) for _ in range(input_length_1 - 1024)]
+    input_ids_1 = [3001] * 1024 + [
+        randint(min_id, max_id) for _ in range(input_length_1 - 1024)
+    ]
     simulation_params_1 = {
         "total_request": 1,  # include the warmup requests.
         "created_time": 0,
@@ -59,7 +61,9 @@ def test_benchmark_sglang():
     )
 
     input_length_2 = 2500
-    input_ids_2 = [3001] * 1280 + [randint(min_id, max_id) for _ in range(input_length_2 - 1280)]
+    input_ids_2 = [3001] * 1280 + [
+        randint(min_id, max_id) for _ in range(input_length_2 - 1280)
+    ]
     simulation_params_2 = {
         "total_request": 1,  # include the warmup requests.
         "created_time": 20,

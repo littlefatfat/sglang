@@ -26,7 +26,9 @@ def main() -> None:
     parser.add_argument("--mode", choices=["OFFLINE", "BLOCKING"], default="OFFLINE")
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     parser.add_argument("--page-size", type=int)
-    parser.add_argument("--workload", choices=["trace", "random", "sharegpt"], required=True)
+    parser.add_argument(
+        "--workload", choices=["trace", "random", "sharegpt"], required=True
+    )
     parser.add_argument("--dataset")
     parser.add_argument("--num-prompts", type=int, default=10)
     parser.add_argument("--input-len", type=int, default=1024)

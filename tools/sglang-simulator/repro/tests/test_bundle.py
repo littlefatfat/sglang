@@ -6,7 +6,6 @@ import sys
 import tomllib
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -195,6 +194,6 @@ def test_hicache_smoke_contract(tmp_path):
 
 def test_acceptance_script_has_completion_sentinel():
     script = ROOT / "scripts/acceptance.sh"
-    assert script.read_text().rstrip().endswith(
-        "# SGLANG_SIMULATOR_ACCEPTANCE_COMPLETE"
+    assert (
+        script.read_text().rstrip().endswith("# SGLANG_SIMULATOR_ACCEPTANCE_COMPLETE")
     )

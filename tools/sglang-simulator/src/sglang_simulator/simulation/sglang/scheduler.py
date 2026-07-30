@@ -95,9 +95,9 @@ class ReqDispatcher:
         # If the simulation mode is `OFFLINE`, only control requests, such as `flush_cache`
         # and `server_info`, are released immediately.
         self.immediate_release_requests = []
-        self.future_queue: list[
-            tuple[float, int, Any]
-        ] = []  # tuple(created time, salt, request)
+        self.future_queue: list[tuple[float, int, Any]] = (
+            []
+        )  # tuple(created time, salt, request)
         self.offline_recv_all_requests = False
         self.profile_active = False
 
@@ -589,9 +589,7 @@ class C_SchedulerHook(BaseHook):
                 metrics.update(
                     calc_iteration_metrics(C_SchedulerHook.ITERATION_STATS, metrics)
                 )
-                metrics.update(
-                    C_SchedulerHook.INFERENCE_PREDICTOR.get_metrics()
-                )
+                metrics.update(C_SchedulerHook.INFERENCE_PREDICTOR.get_metrics())
 
                 try:
                     with open(f"{output_dir}/metrics.json", "w") as f:

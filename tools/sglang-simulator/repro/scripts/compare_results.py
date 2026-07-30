@@ -5,7 +5,6 @@ import json
 import statistics
 from pathlib import Path
 
-
 METRICS = (
     "prefix_cache_reused_ratio",
     "kv_cache_device_hit_ratio",
@@ -38,7 +37,9 @@ def metric_path(root: Path) -> Path:
 
 
 def batch_summary(rows: list[dict]) -> dict:
-    compositions = [tuple(sorted(tuple(x) for x in row.get("requests", []))) for row in rows]
+    compositions = [
+        tuple(sorted(tuple(x) for x in row.get("requests", []))) for row in rows
+    ]
     sizes = [len(x) for x in compositions]
     return {
         "iterations": len(rows),

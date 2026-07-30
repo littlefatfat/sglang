@@ -1,6 +1,5 @@
 import joblib
 import pytest
-
 from sglang_simulator.time_predictor.base import ScheduleBatch, ScheduleRequest
 from sglang_simulator.time_predictor.ml import MLTimePredictor
 

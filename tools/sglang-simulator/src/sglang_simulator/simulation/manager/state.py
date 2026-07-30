@@ -40,7 +40,11 @@ class StateManager:
 
     @classmethod
     def inc_hicache_l2_load_stats(
-        cls, call_count: int = 0, segment_count: int = 0, units: int = 0, bytes_: float = 0
+        cls,
+        call_count: int = 0,
+        segment_count: int = 0,
+        units: int = 0,
+        bytes_: float = 0,
     ) -> None:
         cls._hicache_l2_load_call_count += call_count
         cls._hicache_l2_load_segment_count += segment_count

@@ -1,6 +1,5 @@
-from queue import Empty
+from queue import Empty, Queue
 from typing import Optional
-from queue import Queue
 
 from sglang_simulator.hook import BaseHook
 from sglang_simulator.simulation.manager import ConfigManager, StateManager
@@ -77,7 +76,6 @@ class C_HiCacheController(BaseHook):
                 except Empty:
                     return
 
-
         def handle_prefetch_operation(self):
             if not self.enable_storage:
                 return
@@ -139,7 +137,9 @@ class C_HiCacheController(BaseHook):
                         self.append_host_mem_release(
                             operation.host_indices[storage_hit_count:]
                         )
-                        operation.host_indices = operation.host_indices[:storage_hit_count]
+                        operation.host_indices = operation.host_indices[
+                            :storage_hit_count
+                        ]
                         self.sim_prefetch_buffer.put(operation)
                 except Empty:
                     break

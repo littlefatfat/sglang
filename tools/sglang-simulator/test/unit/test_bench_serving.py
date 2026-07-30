@@ -1,14 +1,14 @@
-import asyncio
 import argparse
+import asyncio
 import io
 import json
 from dataclasses import fields
 
 import aiohttp
+from sglang_simulator.simulation import bench_serving
 
 from sglang.benchmark import serving
 from sglang.benchmark.datasets.common import DatasetRow
-from sglang_simulator.simulation import bench_serving
 
 
 async def _collect(generator):
