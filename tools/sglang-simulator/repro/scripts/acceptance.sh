@@ -173,11 +173,6 @@ start_service \
   configs/qwen3-8b-h20/server_args.json \
   configs/qwen3-8b-h20/hisim.replay.json
 run_logged service-offline-trace \
-  env \
-  SGLANG_USE_CPU_ENGINE=1 \
-  CUDA_VISIBLE_DEVICES= \
-  SGLANG_SIMULATOR_OUTPUT_MODE=OFFLINE \
-  "SGLANG_SIMULATOR_OUTPUT_DIR=${RESULT_ROOT}/service-offline-replay" \
   python3 -m sglang.benchmark.serving \
   --backend sglang \
   --base-url "http://127.0.0.1:${PORT}" \
@@ -200,16 +195,7 @@ start_service \
   configs/qwen3-8b-h20/server_args.json \
   configs/qwen3-8b-h20/hisim.aic.json
 
-BENCH_ENV=(
-  env
-  SGLANG_USE_CPU_ENGINE=1
-  CUDA_VISIBLE_DEVICES=
-  SGLANG_SIMULATOR_OUTPUT_MODE=BLOCKING
-  "SGLANG_SIMULATOR_OUTPUT_DIR=${RESULT_ROOT}/service-blocking-aic"
-)
-
 run_logged terminal-random \
-  "${BENCH_ENV[@]}" \
   python3 -m sglang.benchmark.serving \
   --backend sglang \
   --base-url "http://127.0.0.1:${PORT}" \
@@ -226,7 +212,6 @@ run_logged terminal-random \
 validate service-blocking-aic 2
 
 run_logged terminal-sharegpt \
-  "${BENCH_ENV[@]}" \
   python3 -m sglang.benchmark.serving \
   --backend sglang \
   --base-url "http://127.0.0.1:${PORT}" \

@@ -107,8 +107,8 @@ def main() -> None:
     if output_dir.exists():
         parser.error(f"{output_dir} already exists; choose a new output directory")
 
-    env = os.environ.copy()
-    env.update(
+    server_env = os.environ.copy()
+    server_env.update(
         {
             "SGLANG_USE_CPU_ENGINE": "1",
             "CUDA_VISIBLE_DEVICES": "",
@@ -132,7 +132,7 @@ def main() -> None:
     with server_log_path.open("w", encoding="utf-8") as server_log:
         process = subprocess.Popen(
             server,
-            env=env,
+            env=server_env,
             start_new_session=True,
             stdout=server_log,
             stderr=subprocess.STDOUT,
@@ -150,7 +150,7 @@ def main() -> None:
                     args.request_rate,
                 ),
                 check=True,
-                env=env,
+                env=os.environ.copy(),
             )
             metrics = output_dir / "metrics.json"
             if not metrics.is_file():

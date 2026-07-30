@@ -134,9 +134,9 @@ export SGLANG_SIMULATOR_OUTPUT_MODE=OFFLINE   # 不 sleep，按逻辑时间运�
 export SGLANG_SIMULATOR_OUTPUT_MODE=BLOCKING  # 按预测 step 时间 sleep
 ```
 
-准确度回归用 `OFFLINE`。服务交互验收用 `BLOCKING`；此时 benchmark 客户端
-也必须设置 `SGLANG_SIMULATOR_OUTPUT_MODE=BLOCKING`，客户端才会按
-`request-rate` 实际等待。
+准确度回归用 `OFFLINE`。服务交互验收用 `BLOCKING`。该变量只由服务端读取；
+benchmark 客户端的发送节奏由 `--request-rate` 或
+`--use-trace-timestamps` 控制。
 
 `BLOCKING` 会同时阻塞 forward 和可见的 L2→L1 load：关闭 overlap schedule
 时 sleep 全部有效 load 时延；开启 overlap schedule 时仅 sleep
@@ -171,20 +171,16 @@ SGLang CLI 参数优先。`scripts/start_service.py` 仅供一键验收脚本从
 
 ### 3.1 终端打 benchmark 流量
 
-客户端进程固定使用 CPU；这只避免导入无关 GPU kernel，不改变服务端 allocator：
+终端 B 只需保留官方 SGLang 的导入路径：
 
 ```bash
-export SGLANG_USE_CPU_ENGINE=1
-export CUDA_VISIBLE_DEVICES=""
-export SGLANG_SIMULATOR_OUTPUT_MODE=OFFLINE
-export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim/qwen3-8b-service
+export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
 ```
 
 Random：
 
-Random/ShareGPT 的服务化 request-rate 示例应把终端 A 和客户端环境都改为
-`BLOCKING`；官方客户端会按 request rate 实际发流。OFFLINE request-rate
-使用第 4 节的同进程入口。
+Random/ShareGPT 的服务化 request-rate 示例把终端 A 设置为 `BLOCKING`；
+官方客户端始终按 `--request-rate` 实际发流。
 
 ```bash
 python3 -m sglang.benchmark.serving \

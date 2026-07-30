@@ -36,10 +36,6 @@ python3 -m sglang_simulator.simulation.sglang.launch_server \
 ```bash
 export HISIM_REPRO=/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro
 export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
-export SGLANG_USE_CPU_ENGINE=1
-export CUDA_VISIBLE_DEVICES=""
-export SGLANG_SIMULATOR_OUTPUT_MODE=BLOCKING
-export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim-case-cpu-random
 
 python3 -m sglang.benchmark.serving \
   --backend sglang \
@@ -82,10 +78,6 @@ export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim-case-cpu-sharegpt
 ```bash
 export HISIM_REPRO=/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro
 export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
-export SGLANG_USE_CPU_ENGINE=1
-export CUDA_VISIBLE_DEVICES=""
-export SGLANG_SIMULATOR_OUTPUT_MODE=BLOCKING
-export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim-case-cpu-sharegpt
 
 python3 -m sglang.benchmark.serving \
   --backend sglang \
@@ -122,10 +114,6 @@ export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim-case-cpu-autobench-offline
 ```bash
 export HISIM_REPRO=/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro
 export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
-export SGLANG_USE_CPU_ENGINE=1
-export CUDA_VISIBLE_DEVICES=""
-export SGLANG_SIMULATOR_OUTPUT_MODE=OFFLINE
-export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim-case-cpu-autobench-offline
 
 python3 -m sglang.benchmark.serving \
   --backend sglang \
@@ -149,11 +137,9 @@ OFFLINE 不增加 `--use-trace-timestamps`：客户端立即提交请求，服�
 
 终端 A 使用第 1 节启动命令，修改输出目录为
 `/tmp/hisim-case-cpu-autobench-blocking`，端口改为 `31504`。终端 B 使用
-3.1 的命令，做三处修改：
+3.1 的命令，只修改服务地址：
 
 ```text
-SGLANG_SIMULATOR_OUTPUT_MODE=BLOCKING
-SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim-case-cpu-autobench-blocking
 --base-url http://127.0.0.1:31504
 ```
 
@@ -195,9 +181,6 @@ python3 -m sglang_simulator.simulation.sglang.launch_server \
 ```bash
 export HISIM_REPRO=/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro
 export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
-export CUDA_VISIBLE_DEVICES=7
-export SGLANG_SIMULATOR_OUTPUT_MODE=OFFLINE
-export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim-case-gpu-autobench
 
 python3 -m sglang.benchmark.serving \
   --backend sglang \
@@ -306,12 +289,8 @@ python3 -m sglang_simulator.simulation.sglang.launch_server \
 终端 B，使用与终端 A 相同的 `HISIM_OUT`、`HISIM_PORT`：
 
 ```bash
+export HISIM_REPRO=/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator/repro
 export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
-export SGLANG_ENABLE_UNIFIED_RADIX_TREE=1
-export SGLANG_USE_CPU_ENGINE=1
-export CUDA_VISIBLE_DEVICES=""
-export SGLANG_SIMULATOR_OUTPUT_MODE=OFFLINE
-export SGLANG_SIMULATOR_OUTPUT_DIR="${HISIM_OUT}"
 
 python3 -m sglang.benchmark.serving \
   --backend sglang \
@@ -327,6 +306,10 @@ python3 -m sglang.benchmark.serving \
 python3 "${HISIM_REPRO}/scripts/validate_result.py" \
   "${HISIM_OUT}" --expected-requests 5
 ```
+
+终端 B 不读取 simulator 的设备、时钟模式或输出目录变量；这些只由终端 A
+的服务进程读取。客户端发送节奏由 `--request-rate` 或
+`--use-trace-timestamps` 控制。
 
 本次实测：
 
