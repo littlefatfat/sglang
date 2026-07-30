@@ -171,11 +171,15 @@ SGLang CLI 参数优先。`scripts/start_service.py` 仅供一键验收脚本从
 
 ### 3.1 终端打 benchmark 流量
 
-终端 B 只需保留官方 SGLang 的导入路径：
+终端 B 设置官方 SGLang 的导入路径，并把输出目录设为与终端 A 完全相同：
 
 ```bash
 export PYTHONPATH=/sgl-workspace/sglang/python:${PYTHONPATH:-}
+export SGLANG_SIMULATOR_OUTPUT_DIR=/tmp/hisim/qwen3-8b-service
 ```
+
+自带 benchmark 的最终输出只读取该目录下的服务端 `metrics.json`；目录错误或文件
+不存在会直接报错，不再回退到客户端 wall-clock 指标。
 
 Random：
 

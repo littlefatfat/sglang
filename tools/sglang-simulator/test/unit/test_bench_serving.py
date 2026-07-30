@@ -1,4 +1,6 @@
 import asyncio
+import argparse
+import json
 
 import aiohttp
 
@@ -122,3 +124,34 @@ def test_simulator_cli_argument_is_removed_before_official_parser():
     )
     assert mode == "blocking"
     assert remaining == ["--backend", "sglang", "--num-prompts", "2"]
+
+
+def test_serving_result_uses_only_backend_metrics(tmp_path, monkeypatch, capsys):
+    metrics = {"completed": 50, "duration": 10.75, "request_throughput": 4.65}
+    (tmp_path / "metrics.json").write_text(json.dumps(metrics))
+    monkeypatch.setenv("SGLANG_SIMULATOR_OUTPUT_DIR", str(tmp_path))
+
+    def fake_run_benchmark(_):
+        print("request preparation remains visible")
+        print("\n============ Serving Benchmark Result ============")
+        print("Benchmark duration (s): 999.0")
+        print("=" * 50)
+
+    monkeypatch.setattr(
+        bench_serving, "_ORIGINAL_RUN_BENCHMARK", fake_run_benchmark
+    )
+    result = bench_serving.simulator_run_benchmark(
+        argparse.Namespace(
+            backend="sglang",
+            dataset_name="sharegpt",
+            use_trace_timestamps=False,
+            output_file=None,
+        )
+    )
+    output = capsys.readouterr().out
+
+    assert result == metrics
+    assert "request preparation remains visible" in output
+    assert "Simulator Backend Metrics" in output
+    assert '"duration": 10.75' in output
+    assert "999.0" not in output
