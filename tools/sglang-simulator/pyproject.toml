@@ -15,5 +15,5 @@ dependencies = [
 
 [project.optional-dependencies]
 aic = [
-    "aiconfigurator @ git+https://github.com/ai-dynamo/aiconfigurator.git"
+    "aiconfigurator @ git+https://github.com/ai-dynamo/aiconfigurator.git@c5f139662be28b177ca9f62f83543bbf10f133a0"
 ]

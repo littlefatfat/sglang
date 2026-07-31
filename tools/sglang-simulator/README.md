@@ -29,9 +29,17 @@ cd tools/sglang-simulator
 pip install -e .
 ```
 
-AIConfigurator is optional. Install the revision required by the selected performance
-database separately with `--no-deps`; this avoids replacing NumPy and CUDA-related
-packages supplied by the SGLang image.
+AIConfigurator is optional. The `aic` extra pins the validated v0.10 commit. Install
+it with `--no-deps` to avoid replacing NumPy and CUDA-related packages supplied by
+the SGLang image:
+
+```bash
+pip install --no-deps ".[aic]"
+```
+
+The AIConfigurator code version and `predictor.database_path` are independent. A
+private performance database can be used when it provides the system, backend,
+version, module, and quantization rows requested by the workload.
 
 ## Quick start
 

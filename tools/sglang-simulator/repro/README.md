@@ -51,14 +51,17 @@ mount -t nfs4 33.254.38.20:/apsarapangu/disk2 /disk2_20
 
 ```bash
 export PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
-pip3 install -e /host/aiconfigurator --no-deps
-pip3 install -e \
-  /host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator
+export SIMULATOR_ROOT=/host/hisim-sglang/worktrees/sglang-v0.5.16-adaptation/tools/sglang-simulator
+pip3 install --no-deps -e "${SIMULATOR_ROOT}[aic]"
 ```
 
 AIC 当前元数据要求 NumPy 1.26，但已验证其本 case 在镜像自带的 NumPy 2.3.5
 可正常预测。必须给 AIC 加 `--no-deps`，否则 pip 会降级 NumPy，与镜像内
 CUDA 13 CuPy 冲突。
+
+`aic` extra 固定到已验证的 AIC v0.10 commit。AIC 代码与
+`predictor.database_path` 指向的 perf database 相互独立；自采目录只要覆盖配置
+和 workload 实际查询的 system、backend、version、module 与量化组合即可使用。
 
 Simulator 直接依赖 `sglang==0.5.16`、NumPy、scikit-learn 和 joblib。普通
 editable 安装会复用官方镜像中已满足的版本，并自动补齐缺失依赖；不要增加

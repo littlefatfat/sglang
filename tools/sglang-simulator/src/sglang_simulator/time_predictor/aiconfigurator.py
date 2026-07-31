@@ -128,6 +128,38 @@ def get_perf_model(
     )
 
 
+def _install_legacy_float16_quant_mode_aliases() -> None:
+    """Accept legacy perf tables that label the BF16 bucket as float16."""
+    for enum_class in (
+        GEMMQuantMode,
+        MoEQuantMode,
+        FMHAQuantMode,
+        KVCacheQuantMode,
+    ):
+        if (
+            "float16" not in enum_class.__members__
+            and "bfloat16" in enum_class.__members__
+        ):
+            enum_class._member_map_["float16"] = enum_class.bfloat16
+
+
+def _relax_legacy_nearest_1d_interpolation(database) -> None:
+    """Preserve the legacy extrapolation behavior when the old helper exists.
+
+    AIConfigurator 0.10 moved interpolation out of ``PerfDatabase`` and removed
+    this private method. Older releases still need the wrapper so simulator
+    workloads can query points outside the measured inner range.
+    """
+    nearest_helper = getattr(database, "_nearest_1d_point_helper", None)
+    if nearest_helper is None:
+        return
+
+    def wrapped(x: int, values: list[int], inner_only: bool = False):
+        return nearest_helper(x, values, inner_only)
+
+    database._nearest_1d_point_helper = wrapped
+
+
 class AIConfiguratorTimePredictor(InferTimePredictor):
     def __init__(
         self,
@@ -150,6 +182,7 @@ class AIConfiguratorTimePredictor(InferTimePredictor):
         if isinstance(database_mode, str):
             database_mode = self._get_database_mode(database_mode)
 
+        _install_legacy_float16_quant_mode_aliases()
         database = get_database(
             system=hw.name,
             backend=config.backend_name,
@@ -165,19 +198,7 @@ class AIConfiguratorTimePredictor(InferTimePredictor):
         database.set_default_database_mode(database_mode)
         logger.info(f"AIC Database mode: {database_mode}")
 
-        # --- Replace the original function to support more flexible request input. --- #
-
-        db_nearest_1d_point_helper = database._nearest_1d_point_helper
-
-        def wrapped_nearest_1d_point_helper(
-            x: int, values: list[int], inner_only: bool = False
-        ):
-            # Disable the inner_only by default
-            return db_nearest_1d_point_helper(x, values, inner_only)
-
-        database._nearest_1d_point_helper = wrapped_nearest_1d_point_helper
-
-        # --- End --- #
+        _relax_legacy_nearest_1d_interpolation(database)
 
         self._session = InferenceSession(
             model=get_perf_model(config, model, workload_distribution),
