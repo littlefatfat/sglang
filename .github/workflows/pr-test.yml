@@ -119,7 +119,8 @@ jobs:
           jobs: |
             [
               {"prefix": "base-a-test-1-gpu-small", "expected_count": ${{ fromJson(needs.check-changes.outputs.partitions)['base-a-test-1-gpu-small'].size }}},
-              {"prefix": "base-a-test-cpu", "expected_count": ${{ fromJson(needs.check-changes.outputs.partitions)['base-a-test-cpu'].size }}}
+              {"prefix": "base-a-test-cpu", "expected_count": ${{ fromJson(needs.check-changes.outputs.partitions)['base-a-test-cpu'].size }}},
+              {"prefix": "simulator-test-cpu", "expected_count": 1}
             ]
           max-wait-minutes: '240'
 
@@ -307,15 +308,18 @@ jobs:
     # No `secrets: inherit`: this stage has no secret consumer, unlike the GPU
     # stages' coredump upload. GITHUB_TOKEN and permissions inherit regardless.
 
-      - name: Run SGLang Simulator compatibility tests
-        if: matrix.partition == 0
-        timeout-minutes: 10
-        env:
-          UV_SYSTEM_PYTHON: "1"
-        run: |
-          uv pip install -e "tools/sglang-simulator[aic]"
-          python3 -m pytest -q tools/sglang-simulator/test/test_simulation_sglang_runner.py
-          python3 -m pytest -q tools/sglang-simulator/test/test_simulation_sglang_serving.py
+  simulator-test-cpu:
+    needs: [check-changes, call-gate, rust-ext-build]
+    if: |
+      always() &&
+      needs.check-changes.result == 'success' &&
+      ((github.event_name == 'schedule' || inputs.test_parallel_dispatch == true) || (!failure() && !cancelled()))
+    uses: ./.github/workflows/_pr-test-simulator-cpu.yml
+    with:
+      check_changes: ${{ toJson(needs.check-changes.outputs) }}
+      caller_inputs: ${{ toJson(inputs) }}
+      rust_ext_artifact: ${{ needs.rust-ext-build.outputs.artifact_name }}
+    # No `secrets: inherit`: this hosted CPU job has no secret consumer.
 
   # Runs on 5090 (32GB, SM120)
   base-b-test-1-gpu-small:
@@ -519,6 +523,7 @@ jobs:
 
         base-a-test-1-gpu-small,
         base-a-test-cpu,
+        simulator-test-cpu,
         base-b-test-1-gpu-small,
         base-b-test-1-gpu-large,
         base-b-test-2-gpu-large,

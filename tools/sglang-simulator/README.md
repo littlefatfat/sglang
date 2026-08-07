@@ -107,7 +107,6 @@ python3 -m sglang_simulator.simulation.bench_serving \
   --dataset-path /absolute/path/to/trace.jsonl \
   --use-trace-timestamps \
   --num-prompts 100 \
-  --warmup-requests 0 \
   --profile \
   --output-file "$SIMULATOR_OUTPUT_DIR/benchmark.json"
 ```

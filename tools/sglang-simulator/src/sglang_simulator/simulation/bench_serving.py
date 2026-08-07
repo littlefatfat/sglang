@@ -244,6 +244,8 @@ def _simulator_argument_parser(base_parser):
                 and "autobench" not in choices
             ):
                 kwargs["choices"] = [*choices, "autobench"]
+            if "--warmup-requests" in name_or_flags:
+                kwargs["default"] = 0
             return super().add_argument(*name_or_flags, **kwargs)
 
     return SimulatorArgumentParser
