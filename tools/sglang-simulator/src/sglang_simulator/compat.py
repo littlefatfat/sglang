@@ -4,6 +4,15 @@ import inspect
 from importlib import metadata
 
 SIMULATOR_SERVER_ARG_OVERRIDES = {
+    # The simulator models the target deployment topology separately through
+    # sim_config.scheduler. Keep the SGLang runtime single-process so host-side
+    # simulator work is not multiplied by the modeled parallel world size.
+    "tp_size": 1,
+    "ep_size": 1,
+    "dp_size": 1,
+    "pp_size": 1,
+    "attn_cp_size": 1,
+    "dcp_size": 1,
     "disable_overlap_schedule": True,
     "disable_cuda_graph": True,
     "attention_backend": "torch_native",
