@@ -5,6 +5,14 @@ replacing model forward execution with a latency predictor. It supports
 timestamped trace replay, synthetic workloads, hierarchical cache simulation,
 and serving-compatible metrics without loading model weights.
 
+## Compatibility
+
+SGLang Simulator tracks the current SGLang `main` branch and maintains
+compatibility with the two most recent SGLang releases. For the current
+integration, the maintained release pair is `v0.5.16` and `v0.5.17`.
+Compatibility code uses API and capability checks instead of branching on
+version numbers.
+
 ## Requirements
 
 - A compatible SGLang checkout. The simulator uses the SGLang source from the

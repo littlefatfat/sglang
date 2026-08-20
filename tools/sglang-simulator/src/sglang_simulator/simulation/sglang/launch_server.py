@@ -64,14 +64,13 @@ def apply_simulator_defaults(raw_args: argparse.Namespace, argv: list[str]) -> N
     ):
         raw_args.disable_cuda_graph = True
 
-    # Some v0.5.16 model checks still query CUDA capability while constructing
-    # ServerArgs, before the simulator runner is spawned.
+    # CPU-only model validation may still query CUDA capability while
+    # constructing ServerArgs, before the simulator runner is spawned.
     import torch
 
     torch.cuda.get_device_capability = lambda *_args, **_kwargs: (10, 0)
 
 
-# Ref: https://github.com/sgl-project/sglang/blob/v0.5.6.post2/python/sglang/launch_server.py
 if __name__ == "__main__":
     validate_launch_runtime()
 

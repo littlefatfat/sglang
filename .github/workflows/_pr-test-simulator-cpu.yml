@@ -92,3 +92,5 @@ jobs:
         run: |
           python3 -m pytest -q tools/sglang-simulator/test/test_simulation_sglang_runner.py
           python3 -m pytest -q tools/sglang-simulator/test/test_simulation_sglang_serving.py
+          python3 -m pytest -q tools/sglang-simulator/test/test_simulation_cache_hit_ratio.py
+          python3 -m pytest -q tools/sglang-simulator/test/test_simulation_offline_blocking.py
