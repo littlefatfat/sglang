@@ -103,10 +103,11 @@ In the benchmark terminal, export the same output directory before sending
 timestamped traffic with the simulator-aware benchmark adapter:
 
 ```bash
+cd /path/to/sglang
 export SIMULATOR_OUTPUT_DIR=/tmp/sglang-simulator-serving-001
 export SGLANG_SIMULATOR_OUTPUT_DIR="$SIMULATOR_OUTPUT_DIR"
 
-python3 -m sglang_simulator.simulation.bench_serving \
+python3 benchmark/simulator/bench_serving.py \
   --simulator-mode offline \
   --backend sglang \
   --base-url http://127.0.0.1:30000 \
