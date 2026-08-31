@@ -10,11 +10,10 @@ for the user-facing setup and serving workflow.
 
 ## Compatibility
 
-SGLang Simulator tracks the current SGLang `main` branch and maintains
-compatibility with the two most recent SGLang releases. For the current
-integration, the maintained release pair is `v0.5.16` and `v0.5.17`.
-Compatibility code uses API and capability checks instead of branching on
-version numbers.
+SGLang Simulator tracks the current SGLang `main` branch and maintains compatibility
+with recent SGLang releases. The current integration is validated with `v0.5.16`,
+`v0.5.17`, `v0.5.18`, and `main`. Compatibility code uses API and capability
+checks instead of branching on version numbers.
 
 ## Requirements
 

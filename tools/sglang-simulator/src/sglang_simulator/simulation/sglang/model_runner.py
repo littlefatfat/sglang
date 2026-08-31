@@ -15,6 +15,26 @@ class _MockModel(torch.nn.Module):
         return None
 
 
+class _MockModelLoader:
+    """Minimal loader state for upstream resident-weight accounting."""
+
+    preloaded_weights_bytes = 0
+
+
+def _make_mock_model_loader(model_runner_type):
+    if hasattr(model_runner_type, "preloaded_weights_bytes"):
+        return _MockModelLoader()
+    return None
+
+
+def _resolve_kv_page_size(configurator):
+    return (
+        getattr(configurator, "page_size", None)
+        or getattr(configurator.server_args, "page_size", None)
+        or 1
+    )
+
+
 class C_ModelRunnerHook(BaseHook):
     HOOK_CLASS_NAME = "ModelRunner"
     HOOK_MODULE_NAME = "sglang.srt.model_executor.model_runner"
@@ -34,7 +54,7 @@ class C_ModelRunnerHook(BaseHook):
             self.prefill_aware_swa = False
             self.weight_load_mem_usage = 0
             self.load_config = None
-            self.loader = None
+            self.loader = _make_mock_model_loader(type(self))
 
             if ConfigManager.get_model_info() is None:
                 ConfigManager.set_model_info(resolve_model_info(self.model_config))
@@ -123,10 +143,12 @@ class C_KVCacheConfiguratorHook(BaseHook):
                 configurator = create_memory_pool_configurator(self)
                 target_tokens = self.server_args.max_total_tokens
 
+                page_size = _resolve_kv_page_size(self)
+
                 def resolved_tokens(budget_bytes):
                     try:
                         config = configurator.calculate_pool_sizes(
-                            budget_bytes, self.server_args.page_size
+                            budget_bytes, page_size
                         )
                     except RuntimeError:
                         return 0
@@ -148,7 +170,10 @@ class C_KVCacheConfiguratorHook(BaseHook):
                 model = resolve_model_info(self.model_config)
                 ConfigManager.set_model_info(model)
             hardware = ConfigManager.get_accelerator_info()
-            scheduler_config = resolve_scheduler_config(server_args=self.server_args)
+            scheduler_config = resolve_scheduler_config(
+                server_args=self.server_args,
+                model_config=self.model_config,
+            )
             if hardware is None or scheduler_config is None:
                 raise RuntimeError(
                     "Simulator model, accelerator, and scheduler configuration "

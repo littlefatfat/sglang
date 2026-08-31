@@ -8,14 +8,27 @@ if typing.TYPE_CHECKING:
     from sglang.srt.server_args import ServerArgs
 
 
+def _resolve_model_config(server_args: "ServerArgs", model_config=None):
+    if model_config is not None:
+        return model_config
+
+    get_model_config = getattr(server_args, "get_model_config", None)
+    if callable(get_model_config):
+        return get_model_config()
+
+    return server_args.model_config
+
+
 def resolve_scheduler_config(
     server_args: "ServerArgs",
+    model_config: typing.Optional["ModelConfig"] = None,
 ) -> SchedulerConfig:
     from sglang.version import __version__
 
     dtype = server_args.dtype
     if dtype == "auto":
-        dtype = str(server_args.model_config.dtype).strip("torch.")
+        model_config = _resolve_model_config(server_args, model_config)
+        dtype = str(model_config.dtype).strip("torch.")
     data_type = DataType.from_torch_dtype(dtype)
     return SchedulerConfig(
         data_type=data_type,
