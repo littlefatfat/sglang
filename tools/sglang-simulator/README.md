@@ -5,6 +5,9 @@ replacing model forward execution with a latency predictor. It supports
 timestamped trace replay, synthetic workloads, hierarchical cache simulation,
 and serving-compatible metrics without loading model weights.
 
+See the [SGLang Simulator advanced-feature guide](../../docs/docs/advanced_features/sglang_simulator.mdx)
+for the user-facing setup and serving workflow.
+
 ## Compatibility
 
 SGLang Simulator tracks the current SGLang `main` branch and maintains
@@ -59,7 +62,8 @@ Upgrade this pin only after rerunning the AIC predictor and compatibility tests.
 The maintained tests define the supported first-version scope:
 
 - [`test/test_simulation_sglang_runner.py`](test/test_simulation_sglang_runner.py):
-  direct Python use of `SGLangBenchmarkRunner` in the current process;
+  direct Python use of the repository-level
+  [`SGLangBenchmarkRunner`](../../benchmark/simulator/bench_runner.py);
 - [`test/test_simulation_sglang_serving.py`](test/test_simulation_sglang_serving.py):
   server plus benchmark-client use through the HTTP serving path with AIC, ML,
   and replay predictors and ShareGPT or timestamped traffic;

@@ -1,6 +1,7 @@
 import atexit
 import json
 import os
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -8,6 +9,9 @@ from sglang_simulator.dataset import GenericRequest, SimpleDataset
 from sglang_simulator.simulation.benchmark import BenchmarkConfig
 
 ASSETS = Path(__file__).parent / "assets"
+SGLANG_ROOT = Path(__file__).parents[3]
+if str(SGLANG_ROOT) not in sys.path:
+    sys.path.insert(0, str(SGLANG_ROOT))
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 
@@ -62,8 +66,7 @@ def _write_sim_config(tmp_path: Path) -> Path:
 def make_sglang_runner(tmp_path: Path):
     os.environ["SGLANG_SIMULATOR_CONFIG_PATH"] = str(_write_sim_config(tmp_path))
 
-    from sglang_simulator.simulation.sglang.bench_runner import SGLangBenchmarkRunner
-
+    from benchmark.simulator.bench_runner import SGLangBenchmarkRunner
     from sglang.srt.server_args import ServerArgs
 
     runner = SGLangBenchmarkRunner(
