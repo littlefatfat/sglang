@@ -1,7 +1,7 @@
 """ML-trained per-iter latency predictor.
 
 Loads a joblib pickle of a sklearn-compatible regressor and predicts forward latency
-from batch composition features. Train one with `train_latency_model.py`.
+from batch composition features. Train one with `tools/train_latency_model.py`.
 
 sim_config.json usage:
     "predictor": {
@@ -10,7 +10,6 @@ sim_config.json usage:
     }
 """
 
-import math
 import os
 
 import joblib
@@ -18,6 +17,10 @@ from sglang_simulator.simulation.types import SchedulerConfig
 from sglang_simulator.spec.accelerator import AcceleratorInfo
 from sglang_simulator.spec.model import ModelInfo
 from sglang_simulator.time_predictor.base import InferTimePredictor, ScheduleBatch
+from sglang_simulator.time_predictor.ml_features import (
+    ML_FEATURE_NAMES,
+    extract_ml_features,
+)
 from sglang_simulator.utils import get_logger
 
 logger = get_logger("sgl_simulator")
@@ -39,26 +42,7 @@ class MLTimePredictor(InferTimePredictor):
     # The concrete regressor algorithm is intentionally unrestricted as long
     # as it exposes sklearn-compatible predict([[18 features]]) -> [seconds].
 
-    FEATURE_NAMES = [
-        "batch_size",
-        "sum_extend",
-        "max_extend",
-        "min_extend",
-        "sum_past",
-        "max_past",
-        "min_past",
-        "sum_extend_x_past",
-        "sum_extend_squared",
-        "sum_past_squared",
-        "sum_attn_flops",
-        "sum_extend_x_max_past",
-        "log1p_sum_past",
-        "log1p_sum_attn_flops",
-        "batch_size_x_sum_extend",
-        "max_past_minus_min_past",
-        "is_decode",
-        "is_prefill",
-    ]
+    FEATURE_NAMES = list(ML_FEATURE_NAMES)
 
     def __init__(
         self,
@@ -119,38 +103,7 @@ class MLTimePredictor(InferTimePredictor):
         exts = [req.extend_length for req in batch.reqs]
         pasts = [req.past_kv_length for req in batch.reqs]
 
-        bs = len(exts)
-        sum_e = sum(exts)
-        sum_p = sum(pasts)
-        sum_ep = sum(e * p for e, p in zip(exts, pasts))
-        sum_e2 = sum(e * e for e in exts)
-        sum_p2 = sum(p * p for p in pasts)
-        sum_attn = sum(e * (p + e / 2) for e, p in zip(exts, pasts))
-        max_e = max(exts)
-        max_p = max(pasts)
-        min_e = min(exts)
-        min_p = min(pasts)
-
-        feats = [
-            bs,
-            sum_e,
-            max_e,
-            min_e,
-            sum_p,
-            max_p,
-            min_p,
-            sum_ep,
-            sum_e2,
-            sum_p2,
-            sum_attn,
-            sum_e * max_p,
-            math.log1p(sum_p),
-            math.log1p(sum_attn),
-            bs * sum_e,
-            max_p - min_p,
-            int(all(e == 1 for e in exts)),
-            int(any(e > 1 for e in exts)),
-        ]
+        feats = extract_ml_features(exts, pasts)
 
         self._call_count += 1
         return float(self._model.predict([feats])[0]) * self._latency_scale

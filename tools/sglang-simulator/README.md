@@ -221,6 +221,41 @@ Supported predictors:
 Relative predictor paths are resolved from the simulator configuration location.
 Environment variables in paths use `${NAME}` syntax.
 
+## Train an ML latency predictor
+
+The baseline collector writes the synchronized schedule-batch rows used by the
+generic trainer. Pass every training root explicitly so the saved model bundle
+records its data provenance:
+
+```bash
+python3 tools/sglang-simulator/tools/train_latency_model.py \
+  --data-root /path/to/baselines/machine-a \
+  --data-root /path/to/baselines/machine-b \
+  --out-dir /path/to/output/experiment-001 \
+  --model-prefix latency_model_hgbmono \
+  --forward-modes 1 \
+  --loss both
+```
+
+The default file pattern is `TP0*.schedule_batch.jsonl`, which avoids counting
+identical tensor-parallel batches more than once. Use `--schedule-glob` when the
+collection topology requires a different rank selection.
+
+The trainer keeps the simulator's ordered 18-feature ABI, applies monotonic
+constraints to aggregate work features, and writes separate squared-error (`l2`)
+and median-quantile (`p50`) candidates. Its `eval/` directory contains:
+
+- `dataset_cases.csv`: retained and skipped row counts per collection case;
+- `split_summary.csv`: overall case-stratified holdout metrics;
+- `split_metrics_by_group.csv`: metrics by case, bucket, node, rate, token count,
+  and batch size; and
+- `training_log.md`: data roots, feature contract, and headline metrics.
+
+Treat this split as an interpolation check because every sufficiently large case
+is represented on both sides. Before selecting or deploying a model, run the
+candidate in the simulator against complete baseline cases that were excluded
+from training; scheduler queueing can amplify a small per-step prediction bias.
+
 ## Workload formats
 
 The Autobench trace format uses timestamps in milliseconds:
