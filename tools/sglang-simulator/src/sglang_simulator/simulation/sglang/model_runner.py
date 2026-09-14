@@ -174,7 +174,11 @@ class C_KVCacheConfiguratorHook(BaseHook):
                         config = configurator.calculate_pool_sizes(
                             budget_bytes, page_size
                         )
-                    except RuntimeError:
+                    except (RuntimeError, ValueError):
+                        # Low probes are expected while the binary search finds
+                        # the smallest viable budget. Newer SGLang versions fail
+                        # fast with ValueError when a provisional SWA pool cannot
+                        # admit one request; treat that probe as zero capacity.
                         return 0
                     return config.max_total_num_tokens
 
